@@ -20,8 +20,8 @@ StartTime, StopTime.
 
 2. Everyone can invest project except project sender, need before project startTime and invest amount % (project.stopTime - project.startTime) = 0.
 
-3. Project withdrawl money need to proposal vote from stream balance, invest could vote according to stream balance.
+3. Project withdrawl money need to proposal vote from stream balance in MyProjects tab and click Check, invest could vote according to stream balance in Vote tab.
 
-4. Investors could create arbitration in Stream, it need pay arbitration fees.
+4. Investors could withdrawl, cancel, create arbitration in Stream tab and Click Check, and create arbitration need pay arbitration fees.
 
-5. project need  pay arbitration fees in 24 hours.
+5. project need pay arbitration fees for 24 hours in Arbitration tab.
