@@ -1,0 +1,148 @@
+export default {
+    home: {//首页文案
+        h1: '连续的价值转移以实现实时支付',
+        h2: '通过对货币的编程，我们建立了实时支付的智能合约并将其部署在以太坊上',
+        startBtn: '开始使用',
+        footer: {
+            contactTitle: '联系我们',
+        }
+    },
+    header: {//头部文案
+        streampay:'DAISO',
+        home:'主页',
+        dash:'仪表盘',
+        docs:'文档',
+        metamask:'请安装MetaMask钱包!'
+    },
+    dashboard: {//仪表盘文案
+        dash:'仪表盘',
+        stream:{
+            projects:'所有项目',
+            streams:'我的投资',
+            vote:'我的投票',
+            arbitration:'我的仲裁',
+            myprojects:"我的项目"
+        },
+        create:'创建流',
+        info:{
+            projectId:'项目ID',
+            streamId: '流ID',
+            startTime:'开始时间',
+            stopTime:'结束实现',
+            amount:'提现金额',
+            checkStream:'查看',
+            cancel:'放弃',
+            operation:'操作',
+            projectSellTokenAddress:'出售Token地址',
+            projectSellDeposit:'出售Token数量',
+            projectFundTokenAddress:'募资Token地址',
+            projectFundDeposit:'募资Token地址',
+            investSellDeposit:'投资人出售数量',
+            investFundDeposit:'投资人募集数量',
+            weight:'投票权重',
+            hash:'IPFS哈希',
+            vote:'投票',
+            invest:"投资人",
+            project:'项目方',
+            metaEvidence:'仲裁ID',
+            reclaimedAt:'仲裁创建时间'
+        }
+    },
+    streamInfo: {//详情文案，streamInfo和cancelInfo可以共用
+        streaminfo:'流信息',
+        details:{
+            projectinfo:'项目流详情',
+            investInfo:'投资流详情',
+            withdrawl:'提现',
+            cancel:'结束流',
+            invest:'投资',
+            arbitrate:'仲裁'
+        },
+        info:{
+            copy:'点击复制:{who}',
+            sender:'发送者',
+            projectId:'项目ID',
+            investSellDeposit:'投资者出售Token',
+            investFundDeposit:'投资者募集Token',
+            investWithdrawalAmount:'提现金额',
+            startTime:'开始事件',
+            stopTime:'结束时间',
+            sellBalance:'出售流余额',
+            fundBalance:'募集流余额',
+            projectActualSellDeposit:'项目实际出售Token',
+            projectActualFundDeposit:'项目实际募资Token',
+            projectWithdrawalAmount:'提现金额',
+            projectSellDeposit:'项目方出售Token',
+            projectFundDeposit:'项目方募集Token',
+            havebeenStreamed:'已流动',
+            noinvest:'无投资'
+        },
+        function:{
+            withdraw:'请输入提现金额',
+            operation:'操作',
+            confirm:'确认',
+            cancel:'取消',
+            format:'输入金额格式不正确',
+            withdrawlSuccess:'提取金额成功!',
+            withdrawlFailure:'提取金额失败!',
+            operationHint:'操作提示',
+            nextOfInstallmentTime:'已超过下期支付截止时间!',
+            pay:'本期需支付金额:',
+            paySuccess:'分期支付成功!',
+            payFailure:'分期支付失败!',
+            addInput:'请输入增加的金额:',
+            addSuccess:'投资成功!',
+            addFailure:'投资失败!',
+            cancelStream:'是否取消流?',
+            cancelSuccess:'取消成功!',
+            cancelFailure:'取消失败!',
+        },
+    },
+    createstream:{
+        create:{
+            create:'创建项目',
+            sellTokenAddress:'出售Token地址',
+            fundTokenAddress:'募集Token地址',
+            sellDeposit:'出售Token数量',
+            fundDeposit:'募集Token数量',
+            time:'项目时间',
+            startTime:'开始时间',
+            stopTime:'结束时间',
+            to:'至',
+            choose:'请选择Token',
+            creating:'创建项目 ...',
+            createSuccess:'创建成功',
+            arbitrate:'仲裁',
+            files:'文件上传',
+            pdf:'请上传项目详情，为PDF文件',
+            metaEvidence:"请上传证据，为PDF文件",
+            click:'点击上传'
+        },
+        validate:{
+            sellTokenAddress:'出售Token地址为必填项！',
+            sellDeposit:'出售Token数量为必填项！',
+            fundTokenAddress:'募集Token地址为必填项！',
+            fundDeposit:'募集Token数量为必填项！',
+            hash:'Ipfs Hash为必填项！',
+            startTime:'开始时间为必填项且大于现在时间',
+        }
+    },
+    createArbitrate:{
+        create:'创建仲裁',
+        info:'描述',
+        arbitration:{
+            createArbitration:"仲裁创建",
+            createDisputes:"争议创建",
+            submitEvidence:"提交证据",
+            currentRulling:"判决查看",
+            appeal:"上诉",
+            appealResult:"上诉结果",
+            refunds:"资金退回",
+            payProjectFees:"支付项目方仲裁费",
+            check:"查看判决",
+            progress:"仲裁进程",
+            info:"信息展示",
+            details:"仲裁详情"
+        }
+    }
+}

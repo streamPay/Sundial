@@ -1,0 +1,49 @@
+html, body{
+  width: 100%; height: 100%;
+}
+html, body, div, p, ul, ol, li, dl, dt, dd,
+table, tbody, thead, th, tr, td,
+form, label, fieldset, legend,
+header, nav, footer, article, section, figure
+{
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 14px;
+  font-family: PingFangSC-Light,helvetica neue,hiragino sans gb,tahoma,microsoft yahei ui,microsoft yahei,simsun,sans-serif;
+}
+body { background: #fff; color: #000;}
+
+table {
+    border-collapse:collapse;
+    border-spacing:0;
+}
+h1, h2 {
+  font-weight: normal;
+}
+ul {
+  list-style-type: none;
+}
+a {
+  color: #333;
+}
+a:link{
+  text-decoration: none;
+}
+a:visited{
+  text-decoration: none;
+}
+a:hover{
+  text-decoration: none;
+}
+.clearfix {
+  *zoom: 1;
+}
+.clearfix:before, .clearfix:after {
+  display: table;
+  line-height: 0;
+  content: "";
+}
+.clearfix:after {
+  clear: both;
+}
