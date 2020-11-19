@@ -1,5 +1,9 @@
 # DAISO
 
+## Discord
+Discord Username:Machael#3464
+
+
 ## 
 > Achive DAISO
 
@@ -26,4 +30,3 @@ StartTime, StopTime.
 
 5. project need pay arbitration fees for 24 hours in Arbitration tab.
 
-Discord Username:Machael#3464
