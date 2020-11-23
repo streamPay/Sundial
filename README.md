@@ -14,6 +14,7 @@ Merge streaming money into DAICO, and Kleros solution the disputes from the proj
 
 ## Details
 https://lichenguang62.medium.com/daiso-a-project-fundraising-token-swap-scheme-4e7d3c1ceb67
+
 ## Using
 ### Enviroment AND Tools
 - `JS`
