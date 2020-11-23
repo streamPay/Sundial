@@ -13,8 +13,7 @@ With the development of Ethereum, the scene on Ethereum is developing constantly
 Merge streaming money into DAICO, and Kleros solution the disputes from the project and investors. Allocate fund money to the time, and the fundraising is no longer a one-time act, but a continuing act, and investors can exit at any time. By voting, it could minimize the risk of investors' money. And introduce the Kleros to supervision the project's behavior. 
 
 ## Details
-https://lichenguang62.medium.com/streampay-kleros-daico-659e4e00145a
-
+https://lichenguang62.medium.com/daiso-a-project-fundraising-token-swap-scheme-4e7d3c1ceb67
 ## Using
 ### Enviroment AND Tools
 - `JS`
