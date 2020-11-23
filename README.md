@@ -39,5 +39,7 @@ https://medium.com/@lichenguang62/streampay-kleros-daico-659e4e00145a
 
 ## Contact us
 Email: lichenguang62@gmail.com
+
 Github: https://github.com/Machael-lcg/DAISO
+
 Discord：https://discord.gg/9sQCNK4
