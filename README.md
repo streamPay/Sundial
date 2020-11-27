@@ -21,11 +21,6 @@ https://lichenguang62.medium.com/daiso-a-project-fundraising-token-swap-scheme-4
 - `Metamask`
 - `Kovan network`
 
-### Install
-- `npm install`
-- `npm run dll`
-- `npm start`
-
 ### Tutorial
 1. Project input `sellTokenAddress`, `sellTokenDeposit`, `fundTokenAddress`, `fundTokenDeposit`, `startTime`, `stopTime` and `uploads project info`(pdf files) to create a project.
 
