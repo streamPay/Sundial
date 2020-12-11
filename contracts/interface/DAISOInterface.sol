@@ -54,7 +54,6 @@ interface DAISOInterface {
 
     event CancelProjectForProject (
         uint256 indexed projectId,
-        uint256 projectSellBalance,
         uint256 refunds
     );
 

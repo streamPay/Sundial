@@ -129,7 +129,6 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
 
     struct CreateProjectLocalVars {
         MathError mathErr;
-        uint[] streamId;
         uint256 duration;
     }
 
@@ -174,14 +173,16 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         (vars.mathErr, vars.duration) = subUInt(stopTime, startTime);
         assert(vars.mathErr == MathError.NO_ERROR);
 
-        /* Without this, the rate per second would be zero. */
         require(projectSellDeposit >= vars.duration, "projectSellDeposit smaller than time delta");
         require(projectFundDeposit >= vars.duration, "projectFundDeposit smaller than time delta");
+        require(projectSellDeposit % vars.duration == 0, "projectSellDeposit not multiple of time delta");
+        require(projectFundDeposit % vars.duration == 0, "projectFundDeposit not multiple of time delta");
 
         uint256 projectId;
         (vars.mathErr,projectId) = addUInt(projectSymbol,nextProjectId);
         assert(vars.mathErr == MathError.NO_ERROR);
 
+        uint[] memory streamId;
         projects[projectId] = Types.Project({
             projectSellDeposit: projectSellDeposit,
             projectFundDeposit: projectFundDeposit,
@@ -193,13 +194,13 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
             stopTime: stopTime,
             projectSellTokenAddress: projectSellTokenAddress,
             projectFundTokenAddress: projectFundTokenAddress,
-            streamId:vars.streamId,
-            proposalForCancelStatus:0,
+            streamId: streamId,
+            duration: vars.duration,
             isEntity: true
         });
 
-        /* Increment the next stream id. */
         cancelProjectForInvests[projectId].exitStartTime = startTime;
+
         (vars.mathErr, nextProjectId) = addUInt(nextProjectId, uint256(1));
         assert(vars.mathErr == MathError.NO_ERROR);
 
@@ -230,6 +231,12 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         MathError mathErr;
         uint256 projectSellBalance;
         uint256 projectFundBalance;
+        uint256 remainderOfProjectSell;
+        uint256 remainderOfProjectFund;
+        uint256 duration;
+        uint256 ratePerSecondOfProjectSell;
+        uint256 ratePerSecondOfProjectFund;
+        uint256 remainOfFundStream;
     }
 
     /**
@@ -245,23 +252,53 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
 
         ProjectBalanceOfLocalVars memory vars;
 
+        (vars.mathErr, vars.duration) = subUInt(project.stopTime, cancelProjectForInvest.exitStartTime);
+        assert(vars.mathErr == MathError.NO_ERROR);
+
+        (vars.mathErr, vars.remainOfFundStream) = subUInt(project.projectActualFundDeposit, cancelProjectForInvest.exitProjectFundBalance);
+        assert(vars.mathErr == MathError.NO_ERROR);
+
+        (vars.mathErr, vars.ratePerSecondOfProjectFund) = divUInt(vars.remainOfFundStream, vars.duration);
+        assert(vars.mathErr == MathError.NO_ERROR);
+
+        (vars.mathErr, vars.ratePerSecondOfProjectSell) = divUInt(cancelProjectForInvest.exitProjectSellBalance, vars.duration);
+        assert(vars.mathErr == MathError.NO_ERROR);
+
         uint256 delta = deltaOfForProject(projectId);
-        (vars.mathErr, vars.projectFundBalance) = mulUInt(delta, cancelProjectForInvest.ratePerSecondOfProjectFund);
+        (vars.mathErr, vars.projectFundBalance) = mulUInt(delta, vars.ratePerSecondOfProjectFund);
         assert(vars.mathErr == MathError.NO_ERROR);
 
         (vars.mathErr, vars.projectFundBalance) = addUInt(cancelProjectForInvest.exitProjectFundBalance, vars.projectFundBalance);
         assert(vars.mathErr == MathError.NO_ERROR);
+
+        if(block.timestamp >= project.stopTime){
+            /* This calculation dealing with remainders */
+            (vars.mathErr,vars.remainderOfProjectFund) = modUInt(vars.remainOfFundStream,vars.duration);
+            assert(vars.mathErr == MathError.NO_ERROR);
+
+            (vars.mathErr, vars.projectFundBalance) = addUInt(vars.remainderOfProjectFund, vars.projectFundBalance);
+            require(vars.mathErr == MathError.NO_ERROR, "recipient balance calculation error");
+        }
 
         if (project.projectWithdrawalAmount > 0) {
             (vars.mathErr, vars.projectFundBalance) = subUInt(vars.projectFundBalance, project.projectWithdrawalAmount);
             assert(vars.mathErr == MathError.NO_ERROR);
         }
 
-        (vars.mathErr, vars.projectSellBalance) = mulUInt(delta, cancelProjectForInvest.ratePerSecondOfProjectSell);
+        (vars.mathErr, vars.projectSellBalance) = mulUInt(delta, vars.ratePerSecondOfProjectSell);
         assert(vars.mathErr == MathError.NO_ERROR);
 
         (vars.mathErr, vars.projectSellBalance) = subUInt(cancelProjectForInvest.exitProjectSellBalance, vars.projectSellBalance);
         assert(vars.mathErr == MathError.NO_ERROR);
+
+        if(block.timestamp >= project.stopTime){
+            /* This calculation dealing with remainders */
+            (vars.mathErr,vars.remainderOfProjectSell) = modUInt(vars.projectSellBalance,vars.duration);
+            assert(vars.mathErr == MathError.NO_ERROR);
+
+            (vars.mathErr, vars.projectSellBalance) = addUInt(vars.remainderOfProjectSell, vars.projectSellBalance);
+            require(vars.mathErr == MathError.NO_ERROR, "recipient balance calculation error");
+        }
 
         return (vars.projectSellBalance,vars.projectFundBalance);
     }
@@ -304,16 +341,16 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         Types.Project memory project = projects[projectId];
         projectRefundsInternalOfLocalVars memory vars;
 
-        (uint256 projectSellBalance,) = projectBalanceOf(projectId);
-
         (vars.mathErr, vars.refunds) = subUInt(project.projectSellDeposit, project.projectActualSellDeposit);
         assert(vars.mathErr == MathError.NO_ERROR);
 
-        (vars.mathErr, projectSellBalance) = addUInt(vars.refunds, projectSellBalance);
-        assert(vars.mathErr == MathError.NO_ERROR);
-        if (projectSellBalance > 0)
-            require(IERC20(project.projectSellTokenAddress).transfer(project.sender, projectSellBalance), "projectSell token transfer failure");
-        emit CancelProjectForProject(projectId,projectSellBalance,vars.refunds);
+        require(IERC20(project.projectSellTokenAddress).transfer(project.sender, vars.refunds), "projectSell token transfer failure");
+        emit CancelProjectForProject(projectId,vars.refunds);
+    }
+
+    struct LaunchProposalOfLocalVars {
+        MathError mathErr;
+        uint256 stopTime;
     }
 
     /**
@@ -332,13 +369,16 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         onlyProject(projectId)
         projectExists(projectId)
         public
-        returns(bool) {
+        returns(bool)
+    {
         Types.Proposal memory proposal = proposals[projectId];
-        require(proposal.status == 0);
-        LaunchProposalOfLocalVars memory vars;
         Types.Project memory project = projects[projectId];
-        (,uint256 balance) = projectBalanceOf(projectId);
+        LaunchProposalOfLocalVars memory vars;
+
         require(amount > 0, "amount is zero");
+        require(proposal.status == 0);
+
+        (,uint256 balance) = projectBalanceOf(projectId);
         require(balance >= amount, "amount exceeds the available balance");
 
         (vars.mathErr, vars.stopTime) = addUInt(block.timestamp,360);
@@ -354,9 +394,9 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         for(uint i = 0; i < project.streamId.length; i++) {
             if(project.streamId[i] != 0) {
                 Types.Stream memory stream = streams[project.streamId[i]];
-                (,uint256 nowbalance) = investBalanceOf(project.streamId[i]);
-                voters[projectId].push([project.streamId[i], nowbalance, 0, 0]);
-                emit LaunchProposal(projectId,project.streamId[i], amount, block.timestamp, vars.stopTime, stream.sender, nowbalance);
+                (,uint256 nowBalance) = investBalanceOf(project.streamId[i]);
+                voters[projectId].push([project.streamId[i], nowBalance, 0, 0]);
+                emit LaunchProposal(projectId, project.streamId[i], amount, block.timestamp, vars.stopTime, stream.sender, nowBalance);
             }
         }
         return true;
@@ -382,10 +422,10 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
                     voters[projectId][i][2] = voteResult;
                     voters[projectId][i][3] = 1;
                     emit VoteForInvest(projectId,voters[projectId][i][0],voters[projectId][i][1],voters[projectId][i][2]);
+                    return true;
                 }
             }
         }
-        return true;
     }
 
     /**
@@ -403,9 +443,9 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
             if(streamId == voters[stream.projectId][i][0]) {
                 voteResult =  voters[stream.projectId][i][2];
                 voted =  voters[stream.projectId][i][3];
+                return(voteResult, voted);
             }
         }
-        return(voteResult, voted);
     }
 
     /**
@@ -427,13 +467,17 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         onlyProject(projectId)
         returns(bool,uint256,uint256)
     {
-        require(proposals[projectId].status == 1);
-        require(projects[projectId].proposalForCancelStatus != 1);
+        Types.Proposal memory proposal = proposals[projectId];
 
-        require(block.timestamp > proposals[projectId].startTime + 360);
+        require(proposal.status == 1);
+        require(cancelProjectForInvests[projectId].proposalForCancelStatus != 1);
+
+        require(block.timestamp > proposal.stopTime);
+
         bool result;
         uint256 pass;
         uint256 notPass;
+
         for(uint i = 0; i < voters[projectId].length; i++) {
             if (voters[projectId][i][2] == 1) {
                 pass = pass + voters[projectId][i][1];
@@ -441,10 +485,10 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
                 notPass = notPass + voters[projectId][i][1];
             }
         }
-        if (pass > notPass) {
+        if (pass >= notPass) {
             withdrawFromProjectInternal(projectId,proposals[projectId].amount,pass,notPass);
             result = true;
-        } else if (pass <= notPass) {
+        } else if (pass < notPass) {
             delete proposals[projectId];
             delete voters[projectId];
             result = false;
@@ -487,8 +531,6 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         uint256 ratePerSecondOfInvestSell;
         uint256 ratePerSecondOfInvestFund;
         uint256 amount;
-        uint256 duration;
-        uint256 exitDuration;
     }
 
     /**
@@ -524,14 +566,9 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         CreateStreamLocalVars memory vars;
         require(msg.sender != project.sender,"sender is project");
         require(investSellDeposit > 0, "investSellDeposit is zero");
-        require(block.timestamp <= projects[projectId].startTime,"time question");
-
-        (vars.mathErr, vars.duration) = subUInt(project.stopTime, project.startTime);
-        assert(vars.mathErr == MathError.NO_ERROR);
-
-        require(investSellDeposit >= vars.duration, "investSellDeposit smaller than time delta");
-        require(investSellDeposit % vars.duration == 0, "investSellDeposit not multiple of time delta");
-
+        require(block.timestamp <= projects[projectId].startTime,"now is after project startTime");
+        require(investSellDeposit >= project.duration, "investSellDeposit smaller than time delta");
+        require(investSellDeposit % project.duration == 0, "investSellDeposit not multiple of time delta");
 
         (vars.mathErr, projects[projectId].projectActualFundDeposit) = addUInt(project.projectActualFundDeposit, investSellDeposit);
         assert(vars.mathErr == MathError.NO_ERROR);
@@ -543,23 +580,14 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
 
         cancelProjectForInvests[projectId].exitProjectSellBalance = projects[projectId].projectActualSellDeposit;
 
-        (vars.mathErr, vars.exitDuration) = subUInt(project.stopTime, cancelProjectForInvests[projectId].exitStartTime);
-        assert(vars.mathErr == MathError.NO_ERROR);
-
-        (vars.mathErr, cancelProjectForInvests[projectId].ratePerSecondOfProjectSell) = divUInt(projects[projectId].projectActualSellDeposit, vars.exitDuration);
-        assert(vars.mathErr == MathError.NO_ERROR);
-
-        (vars.mathErr, cancelProjectForInvests[projectId].ratePerSecondOfProjectFund) = divUInt(projects[projectId].projectActualFundDeposit, vars.exitDuration);
-        assert(vars.mathErr == MathError.NO_ERROR);
-
         (vars.mathErr, vars.investFundDeposit) = mulThenDivUint(investSellDeposit,project.projectSellDeposit,project.projectFundDeposit);
         assert(vars.mathErr == MathError.NO_ERROR);
 
-        (vars.mathErr, vars.ratePerSecondOfInvestSell) = divUInt(investSellDeposit, vars.duration);
+        (vars.mathErr, vars.ratePerSecondOfInvestSell) = divUInt(investSellDeposit, project.duration);
         /* `divUInt` can only return MathError.DIVISION_BY_ZERO but we know `duration` is not zero. */
         assert(vars.mathErr == MathError.NO_ERROR);
 
-        (vars.mathErr, vars.ratePerSecondOfInvestFund) = divUInt(vars.investFundDeposit, vars.duration);
+        (vars.mathErr, vars.ratePerSecondOfInvestFund) = divUInt(vars.investFundDeposit, project.duration);
         /* `divUInt` can only return MathError.DIVISION_BY_ZERO but we know `duration` is not zero. */
         assert(vars.mathErr == MathError.NO_ERROR);
 
@@ -574,8 +602,6 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
             ratePerSecondOfInvestSell: vars.ratePerSecondOfInvestSell,
             ratePerSecondOfInvestFund: vars.ratePerSecondOfInvestFund,
             sender: msg.sender,
-            startTime: project.startTime,
-            stopTime: project.stopTime,
             investWithdrawalAmount:0,
             isEntity: true
         });
@@ -586,7 +612,7 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         (vars.mathErr, nextStreamId) = addUInt(nextStreamId, uint256(1));
         assert(vars.mathErr == MathError.NO_ERROR);
 
-        require(IERC20(project.projectFundTokenAddress).transferFrom(msg.sender, address(this), investSellDeposit), "projectFund token transfer failure");
+        require(IERC20(project.projectFundTokenAddress).transferFrom(msg.sender, address(this), investSellDeposit), "investSell token transfer failure");
         emit CreateStream(streamId, msg.sender,projectId, investSellDeposit, vars.investFundDeposit, project.startTime, project.stopTime);
         return streamId;
     }
@@ -607,9 +633,11 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
      */
     function deltaOf(uint256 streamId) public view streamExists(streamId) returns (uint256 delta) {
         Types.Stream memory stream = streams[streamId];
-        if (block.timestamp <= stream.startTime) return 0;
-        if (block.timestamp < stream.stopTime) return block.timestamp - stream.startTime;
-        return stream.stopTime - stream.startTime;
+        Types.Project memory project = projects[stream.projectId];
+
+        if (block.timestamp <= project.startTime) return 0;
+        if (block.timestamp < project.stopTime) return block.timestamp - project.startTime;
+        return project.stopTime - project.startTime;
     }
 
     /**
@@ -705,8 +733,8 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         returns (bool)
     {
         Types.Stream memory stream = streams[streamId];
-        Types.Project memory project = projects[stream.projectId];
-        if (project.proposalForCancelStatus != 1){
+        Types.CancelProjectForInvest memory cancelProjectForInvest = cancelProjectForInvests[stream.projectId];
+        if (cancelProjectForInvest.proposalForCancelStatus != 1){
             /* cancel due invest reason*/
             cancelInvestInternal(streamId);
             return true;
@@ -721,8 +749,6 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
     struct CancelInvestInternalOfLocalVars {
         MathError mathErr;
         uint256 amount;
-        uint256 duration;
-        uint256 exitSellBalance;
     }
 
     /**
@@ -730,7 +756,6 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
      * @dev Throws if the exitProjectSellBalance calculation has a math error.
      * Throws if the projectActualFundDeposit calculation has a math error.
      * Throws if the projectActualSellDeposit calculation has a math error.
-     * Throws if the duration calculation has a math error.
      * Throws if the ratePerSecondOfProjectSell calculation has a math error.
      * Throws if the ratePerSecondOfProjectFund calculation has a math error.
      *  Throws if there is a projectFund token transfer failure.
@@ -748,10 +773,10 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
 
         (uint256 projectSellBalance,uint256 projectFundBalance) = projectBalanceOf(stream.projectId);
 
-        (vars.mathErr, cancelProjectForInvests[stream.projectId].exitProjectSellBalance) = addUInt(projectSellBalance, project.projectWithdrawalAmount);
+        (vars.mathErr, cancelProjectForInvests[stream.projectId].exitProjectFundBalance) = addUInt(projectFundBalance, project.projectWithdrawalAmount);
         assert(vars.mathErr == MathError.NO_ERROR);
 
-        cancelProjectForInvests[stream.projectId].exitProjectFundBalance = projectFundBalance;
+        cancelProjectForInvests[stream.projectId].exitProjectSellBalance = projectSellBalance;
         cancelProjectForInvests[stream.projectId].exitStartTime = block.timestamp;
 
         (uint256 investSellBalance,uint256 investFundBalance) = investBalanceOf(streamId);
@@ -762,22 +787,10 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         (vars.mathErr, projects[stream.projectId].projectActualSellDeposit) = mulThenDivUint(projects[stream.projectId].projectActualFundDeposit,project.projectSellDeposit,project.projectFundDeposit);
         assert(vars.mathErr == MathError.NO_ERROR);
 
-        (vars.mathErr, vars.duration) = subUInt(project.stopTime, project.startTime);
-        assert(vars.mathErr == MathError.NO_ERROR);
-
-        (vars.mathErr, vars.exitSellBalance) = subUInt(projects[stream.projectId].projectActualSellDeposit, cancelProjectForInvests[stream.projectId].exitProjectSellBalance);
-        assert(vars.mathErr == MathError.NO_ERROR);
-
-        (vars.mathErr, cancelProjectForInvests[stream.projectId].ratePerSecondOfProjectSell) = divUInt(vars.exitSellBalance, vars.duration);
-        assert(vars.mathErr == MathError.NO_ERROR);
-
-        (vars.mathErr, cancelProjectForInvests[stream.projectId].ratePerSecondOfProjectFund) = divUInt(projects[stream.projectId].projectActualFundDeposit, vars.duration);
-        assert(vars.mathErr == MathError.NO_ERROR);
-
         if (investSellBalance > 0)
-            require(IERC20(project.projectFundTokenAddress).transfer(stream.sender, investSellBalance), "projectFund token transfer failure");
+            require(IERC20(project.projectFundTokenAddress).transfer(stream.sender, investSellBalance), "invest sell token transfer failure");
         if (investFundBalance > 0)
-            require(IERC20(project.projectSellTokenAddress).transfer(stream.sender, investFundBalance), "projectSell token transfer failure");
+            require(IERC20(project.projectSellTokenAddress).transfer(stream.sender, investFundBalance), "invest fund token transfer failure");
 
         emit CancelStream(stream.projectId, streamId, stream.sender, investSellBalance, investFundBalance, block.timestamp);
     }
@@ -815,10 +828,7 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         emit CancelProject(stream.projectId, streamId, stream.sender, investSellBalance, investFundBalance,vars.amount,block.timestamp);
     }
 
-    struct LaunchProposalOfLocalVars {
-        MathError mathErr;
-        uint256 stopTime;
-    }
+
 
     /**
      * @notice Returns the project with all its properties.
@@ -840,8 +850,7 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
             uint256 startTime,
             uint256 stopTime,
             address projectSellTokenAddress,
-            address projectFundTokenAddress,
-            uint256 proposalForCancelStatus
+            address projectFundTokenAddress
         )
     {
         projectSellDeposit = projects[projectId].projectSellDeposit;
@@ -854,7 +863,6 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         stopTime = projects[projectId].stopTime;
         projectSellTokenAddress = projects[projectId].projectSellTokenAddress;
         projectFundTokenAddress = projects[projectId].projectFundTokenAddress;
-        proposalForCancelStatus = projects[projectId].proposalForCancelStatus;
     }
 
     /**
@@ -872,8 +880,6 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
             uint256 investSellDeposit,
             uint256 investFundDeposit,
             address sender,
-            uint256 startTime,
-            uint256 stopTime,
             uint256 investWithdrawalAmount,
             uint256 ratePerSecondOfInvestSell,
             uint256 ratePerSecondOfInvestFund
@@ -883,8 +889,6 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         investSellDeposit = streams[streamId].investSellDeposit;
         investFundDeposit = streams[streamId].investFundDeposit;
         sender = streams[streamId].sender;
-        startTime = streams[streamId].startTime;
-        stopTime = streams[streamId].stopTime;
         investWithdrawalAmount = streams[streamId].investWithdrawalAmount;
         ratePerSecondOfInvestSell = streams[streamId].ratePerSecondOfInvestSell;
         ratePerSecondOfInvestFund = streams[streamId].ratePerSecondOfInvestFund;
@@ -904,15 +908,13 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
             uint256 exitProjectSellBalance,
             uint256 exitProjectFundBalance,
             uint256 exitStartTime,
-            uint256 ratePerSecondOfProjectSell,
-            uint256 ratePerSecondOfProjectFund
+            uint256 proposalForCancelStatus
         )
     {
         exitProjectSellBalance = cancelProjectForInvests[projectId].exitProjectSellBalance;
         exitProjectFundBalance = cancelProjectForInvests[projectId].exitProjectFundBalance;
         exitStartTime = cancelProjectForInvests[projectId].exitStartTime;
-        ratePerSecondOfProjectSell = cancelProjectForInvests[projectId].ratePerSecondOfProjectSell;
-        ratePerSecondOfProjectFund = cancelProjectForInvests[projectId].ratePerSecondOfProjectFund;
+        proposalForCancelStatus = cancelProjectForInvests[projectId].proposalForCancelStatus;
     }
 
     /**
@@ -951,10 +953,10 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         require(msg.sender == IArbitrableAddress,"ONLY IArbitrableAddress");
         emit RullingResult(projectId,rulling);
         if (rulling == 1) {
-            projects[projectId].proposalForCancelStatus = 1;
+            cancelProjectForInvests[projectId].proposalForCancelStatus = 1;
             projects[projectId].stopTime = block.timestamp;
         } else if (rulling == 2) {
-            projects[projectId].proposalForCancelStatus = 2;
+            cancelProjectForInvests[projectId].proposalForCancelStatus = 2;
         }
     }
 
@@ -1047,7 +1049,7 @@ contract IArbitrables is IArbitrable, IEvidence,OwnableWithoutRenounce, Pausable
             invest: msg.sender,
             project: project,
             status: Types.Status.Reclaimed,
-            disputeID: 0,
+            disputeID: 10000000,
             reclaimedAt: block.timestamp,
             investFeeDeposit: msg.value,
             projectFeeDeposit: 0,

@@ -13,7 +13,7 @@ library Types{
         address projectSellTokenAddress;
         address projectFundTokenAddress;
         uint[] streamId;
-        uint256 proposalForCancelStatus;
+        uint256 duration;
         bool isEntity;
     }
 
@@ -24,8 +24,6 @@ library Types{
         uint256 ratePerSecondOfInvestSell;
         uint256 ratePerSecondOfInvestFund;
         address sender;
-        uint256 startTime;
-        uint256 stopTime;
         uint256 investWithdrawalAmount;
         bool isEntity;
     }
@@ -34,8 +32,7 @@ library Types{
         uint256 exitProjectSellBalance;
         uint256 exitProjectFundBalance;
         uint256 exitStartTime;
-        uint256 ratePerSecondOfProjectSell;
-        uint256 ratePerSecondOfProjectFund;
+        uint256 proposalForCancelStatus;
     }
 
     struct Proposal {
