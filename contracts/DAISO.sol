@@ -293,7 +293,7 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
 
         if(block.timestamp >= project.stopTime){
             /* This calculation dealing with remainders */
-            (vars.mathErr,vars.remainderOfProjectSell) = modUInt(vars.projectSellBalance,vars.duration);
+            (vars.mathErr,vars.remainderOfProjectSell) = modUInt(cancelProjectForInvest.exitProjectSellBalance,vars.duration);
             assert(vars.mathErr == MathError.NO_ERROR);
 
             (vars.mathErr, vars.projectSellBalance) = addUInt(vars.remainderOfProjectSell, vars.projectSellBalance);
@@ -967,6 +967,10 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
      */
     function updateAddress(address _IArbitrableAddress) public onlyOwner {
         IArbitrableAddress = _IArbitrableAddress;
+    }
+
+    function getTime() external view returns(uint){
+        return block.timestamp;
     }
 }
 
