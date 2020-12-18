@@ -32,6 +32,7 @@ library Types{
         uint256 exitProjectSellBalance;
         uint256 exitProjectFundBalance;
         uint256 exitStartTime;
+        uint256 exitStopTime;
         uint256 proposalForCancelStatus;
     }
 

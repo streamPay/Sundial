@@ -200,6 +200,7 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         });
 
         cancelProjectForInvests[projectId].exitStartTime = startTime;
+        cancelProjectForInvests[projectId].exitStopTime = stopTime;
 
         (vars.mathErr, nextProjectId) = addUInt(nextProjectId, uint256(1));
         assert(vars.mathErr == MathError.NO_ERROR);
@@ -223,8 +224,8 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         Types.Project memory project = projects[projectId];
         Types.CancelProjectForInvest memory cancelProjectForInvest = cancelProjectForInvests[projectId];
         if (block.timestamp <= cancelProjectForInvest.exitStartTime) return 0;
-        if (block.timestamp < project.stopTime) return block.timestamp - cancelProjectForInvest.exitStartTime;
-        return project.stopTime - cancelProjectForInvest.exitStartTime;
+        if (block.timestamp < cancelProjectForInvest.exitStopTime) return block.timestamp - cancelProjectForInvest.exitStartTime;
+        return cancelProjectForInvest.exitStopTime - cancelProjectForInvest.exitStartTime;
     }
 
     struct ProjectBalanceOfLocalVars {
@@ -237,6 +238,7 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         uint256 ratePerSecondOfProjectSell;
         uint256 ratePerSecondOfProjectFund;
         uint256 remainOfFundStream;
+        uint256 remainOfSellStream;
     }
 
     /**
@@ -261,9 +263,6 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         (vars.mathErr, vars.ratePerSecondOfProjectFund) = divUInt(vars.remainOfFundStream, vars.duration);
         assert(vars.mathErr == MathError.NO_ERROR);
 
-        (vars.mathErr, vars.ratePerSecondOfProjectSell) = divUInt(cancelProjectForInvest.exitProjectSellBalance, vars.duration);
-        assert(vars.mathErr == MathError.NO_ERROR);
-
         uint256 delta = deltaOfForProject(projectId);
         (vars.mathErr, vars.projectFundBalance) = mulUInt(delta, vars.ratePerSecondOfProjectFund);
         assert(vars.mathErr == MathError.NO_ERROR);
@@ -271,7 +270,7 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         (vars.mathErr, vars.projectFundBalance) = addUInt(cancelProjectForInvest.exitProjectFundBalance, vars.projectFundBalance);
         assert(vars.mathErr == MathError.NO_ERROR);
 
-        if(block.timestamp >= project.stopTime){
+        if(block.timestamp >= cancelProjectForInvest.exitStopTime){
             /* This calculation dealing with remainders */
             (vars.mathErr,vars.remainderOfProjectFund) = modUInt(vars.remainOfFundStream,vars.duration);
             assert(vars.mathErr == MathError.NO_ERROR);
@@ -285,15 +284,21 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
             assert(vars.mathErr == MathError.NO_ERROR);
         }
 
+        (vars.mathErr, vars.remainOfSellStream) = subUInt(project.projectActualSellDeposit, cancelProjectForInvest.exitProjectSellBalance);
+        assert(vars.mathErr == MathError.NO_ERROR);
+
+        (vars.mathErr, vars.ratePerSecondOfProjectSell) = divUInt(vars.remainOfSellStream, vars.duration);
+        assert(vars.mathErr == MathError.NO_ERROR);
+
         (vars.mathErr, vars.projectSellBalance) = mulUInt(delta, vars.ratePerSecondOfProjectSell);
         assert(vars.mathErr == MathError.NO_ERROR);
 
-        (vars.mathErr, vars.projectSellBalance) = subUInt(cancelProjectForInvest.exitProjectSellBalance, vars.projectSellBalance);
+        (vars.mathErr, vars.projectSellBalance) = subUInt(vars.remainOfSellStream, vars.projectSellBalance);
         assert(vars.mathErr == MathError.NO_ERROR);
 
-        if(block.timestamp >= project.stopTime){
+        if(block.timestamp >= cancelProjectForInvest.exitStopTime){
             /* This calculation dealing with remainders */
-            (vars.mathErr,vars.remainderOfProjectSell) = modUInt(cancelProjectForInvest.exitProjectSellBalance,vars.duration);
+            (vars.mathErr,vars.remainderOfProjectSell) = modUInt(vars.remainOfSellStream,vars.duration);
             assert(vars.mathErr == MathError.NO_ERROR);
 
             (vars.mathErr, vars.projectSellBalance) = addUInt(vars.remainderOfProjectSell, vars.projectSellBalance);
@@ -578,8 +583,6 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         (vars.mathErr, projects[projectId].projectActualSellDeposit) = mulThenDivUint(projects[projectId].projectActualFundDeposit,project.projectSellDeposit,project.projectFundDeposit);
         assert(vars.mathErr == MathError.NO_ERROR);
 
-        cancelProjectForInvests[projectId].exitProjectSellBalance = projects[projectId].projectActualSellDeposit;
-
         (vars.mathErr, vars.investFundDeposit) = mulThenDivUint(investSellDeposit,project.projectSellDeposit,project.projectFundDeposit);
         assert(vars.mathErr == MathError.NO_ERROR);
 
@@ -634,10 +637,11 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
     function deltaOf(uint256 streamId) public view streamExists(streamId) returns (uint256 delta) {
         Types.Stream memory stream = streams[streamId];
         Types.Project memory project = projects[stream.projectId];
+        Types.CancelProjectForInvest memory cancelProjectForInvest = cancelProjectForInvests[stream.projectId];
 
         if (block.timestamp <= project.startTime) return 0;
-        if (block.timestamp < project.stopTime) return block.timestamp - project.startTime;
-        return project.stopTime - project.startTime;
+        if (block.timestamp < cancelProjectForInvest.exitStopTime) return block.timestamp - project.startTime;
+        return cancelProjectForInvest.exitStopTime - project.startTime;
     }
 
     /**
@@ -776,8 +780,14 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         (vars.mathErr, cancelProjectForInvests[stream.projectId].exitProjectFundBalance) = addUInt(projectFundBalance, project.projectWithdrawalAmount);
         assert(vars.mathErr == MathError.NO_ERROR);
 
-        cancelProjectForInvests[stream.projectId].exitProjectSellBalance = projectSellBalance;
-        cancelProjectForInvests[stream.projectId].exitStartTime = block.timestamp;
+        (vars.mathErr, cancelProjectForInvests[stream.projectId].exitProjectSellBalance) = subUInt(project.projectActualSellDeposit, projectSellBalance);
+        assert(vars.mathErr == MathError.NO_ERROR);
+
+        if (block.timestamp >= project.stopTime) {
+            cancelProjectForInvests[stream.projectId].exitStartTime = project.startTime;
+        } else {
+            cancelProjectForInvests[stream.projectId].exitStartTime = block.timestamp;
+        }
 
         (uint256 investSellBalance,uint256 investFundBalance) = investBalanceOf(streamId);
 
@@ -908,12 +918,14 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
             uint256 exitProjectSellBalance,
             uint256 exitProjectFundBalance,
             uint256 exitStartTime,
+            uint256 exitStopTime,
             uint256 proposalForCancelStatus
         )
     {
         exitProjectSellBalance = cancelProjectForInvests[projectId].exitProjectSellBalance;
         exitProjectFundBalance = cancelProjectForInvests[projectId].exitProjectFundBalance;
         exitStartTime = cancelProjectForInvests[projectId].exitStartTime;
+        exitStopTime = cancelProjectForInvests[projectId].exitStopTime;
         proposalForCancelStatus = cancelProjectForInvests[projectId].proposalForCancelStatus;
     }
 
@@ -954,7 +966,7 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
         emit RullingResult(projectId,rulling);
         if (rulling == 1) {
             cancelProjectForInvests[projectId].proposalForCancelStatus = 1;
-            projects[projectId].stopTime = block.timestamp;
+            cancelProjectForInvests[projectId].exitStopTime = block.timestamp;
         } else if (rulling == 2) {
             cancelProjectForInvests[projectId].proposalForCancelStatus = 2;
         }
@@ -967,10 +979,6 @@ contract DAISO is  OwnableWithoutRenounce, PausableWithoutRenounce, Exponential,
      */
     function updateAddress(address _IArbitrableAddress) public onlyOwner {
         IArbitrableAddress = _IArbitrableAddress;
-    }
-
-    function getTime() external view returns(uint){
-        return block.timestamp;
     }
 }
 
