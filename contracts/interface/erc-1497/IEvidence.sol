@@ -48,18 +48,4 @@ interface IEvidence {
         uint256 indexed _metaEvidenceID,
         uint256 _evidenceGroupID
     );
-
-    event Txs(
-        uint256 projectId,
-        address indexed project,
-        address indexed invest,
-        uint256 indexed _metaEvidenceId,
-        uint256 reclaimedAt
-    );
-
-    event Rule(
-        uint256 indexed _metaEvidenceId,
-        uint256 indexed disputeId,
-        uint256 indexed rulling
-    );
 }

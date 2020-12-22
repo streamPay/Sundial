@@ -12,10 +12,12 @@ library Types{
         uint256 stopTime;
         address projectSellTokenAddress;
         address projectFundTokenAddress;
-        uint[] streamId;
+        uint256[] streamId;
         uint256 duration;
-        bool isEntity;
     }
+
+    enum VoteResult {Pass,NotPass}
+    enum IsVote {NoVote,Voted}
 
     struct Stream {
         uint256 projectId;
@@ -25,7 +27,9 @@ library Types{
         uint256 ratePerSecondOfInvestFund;
         address sender;
         uint256 investWithdrawalAmount;
-        bool isEntity;
+        uint256 voteForWight;
+        VoteResult voteResult;
+        IsVote isVote;
     }
 
     struct CancelProjectForInvest {
@@ -38,11 +42,8 @@ library Types{
 
     struct Proposal {
         uint256 amount;
-        uint256 status;
         uint256 startTime;
-        uint256 stopTime;
     }
-
 
     enum Status {Initial, Reclaimed, Disputed, Resolved}
 
@@ -55,7 +56,10 @@ library Types{
         uint256 investFeeDeposit;
         uint256 projectFeeDeposit;
         uint256 projectId;
-        bool isEntity;
     }
+
+    enum RulingOptions {RefusedToArbitrate, InvestWins, ProjectWins}
+
+
 
 }

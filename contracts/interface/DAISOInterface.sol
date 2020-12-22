@@ -78,4 +78,12 @@ interface DAISOInterface {
         uint256 indexed projectId,
         uint256 rulling
     );
+
+    event Txs(
+        uint256 projectId,
+        address indexed project,
+        address indexed invest,
+        uint256 indexed _metaEvidenceId,
+        uint256 reclaimedAt
+    );
 }
