@@ -841,7 +841,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      */
     function reclaimFunds(uint256 projectId)  external payable {
         Types.Arbitration storage arbitration = arbitrations[projectId];
-        Types.Project storage project = projects[projectId];
 
         require(arbitration.status == Types.Status.Reclaimed);
         require(msg.sender == arbitration.invest);
@@ -854,15 +853,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
             cancelProjectForInvests[projectId].exitStopTime = block.timestamp;
         }
         cancelProjectForInvests[projectId].proposalForCancelStatus = 1;
-
-        uint256 sumForInvestSellDeposit;
-        for(uint i = 0; i < project.streamId.length; i++){
-            if (project.streamId[i] != 0) {
-                sumForInvestSellDeposit = sumForInvestSellDeposit.add(streams[project.streamId[i]].investSellDeposit);
-            }
-        }
-        cancelProjectForInvests[projectId].sumForInvestSellDeposit = sumForInvestSellDeposit;
-
         arbitration.invest.transfer(arbitration.investFeeDeposit);
     }
 
@@ -936,16 +926,23 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         emit Ruling(IArbitrator(msg.sender), _disputeID, _ruling);
     }
 
-    /**
-     * @notice project or investors submit evidence.
-     * @dev Throws if the arbitration id does not point to a valid project.
-     *  Throws if the transaction.status is Resolved.
-     *  Throws if the caller is not investors or project.
-     * @param projectId The id of the project arbitration for which to query the delta.
-     * @param _evidence The _evidence of arbitration.
-     */
-    function submitEvidence(uint256 projectId, string calldata _evidence) external {
-        require(arbitrations[projectId].status != Types.Status.Resolved);
-        emit Evidence(IArbitrator(arbitratorAddress), projectId, msg.sender, _evidence);
+
+
+    function test(uint256 projectId) public {
+        Types.Project storage project = projects[projectId];
+
+        uint256 sumForInvestSellDeposit;
+        for(uint i = 0; i < project.streamId.length; i++){
+            if (project.streamId[i] != 0) {
+                sumForInvestSellDeposit = sumForInvestSellDeposit.add(streams[project.streamId[i]].investSellDeposit);
+            }
+        }
+        cancelProjectForInvests[projectId].sumForInvestSellDeposit = sumForInvestSellDeposit;
+        cancelProjectForInvests[projectId].proposalForCancelStatus = 1;
+
+        if (block.timestamp <= cancelProjectForInvests[projectId].exitStopTime) {
+            cancelProjectForInvests[projectId].exitStopTime = block.timestamp;
+        }
+
     }
 }
