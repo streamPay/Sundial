@@ -1,8 +1,8 @@
 pragma solidity 0.5.16;
 
-import "./interface/IArbitrable.sol";
+import "./interface/IArbitrator.sol";
 
-contract Arbitrables is IArbitrable{
+contract Arbitrables{
 
     /**
      * @notice Address of IArbitrator.
@@ -10,7 +10,7 @@ contract Arbitrables is IArbitrable{
     address arbitratorAddress;
 
     constructor() public {
-        arbitratorAddress = address(0xc4F7fD9EB7825669d4e46F1b58997afE79864B1E);
+        arbitratorAddress = address(0x6A498861dD1f4e9C58Aa6a5Eee34C45aA890Df9E);
     }
 
     /**
@@ -27,7 +27,6 @@ contract Arbitrables is IArbitrable{
         require(status == IArbitrator.DisputeStatus.Appealable);
         IArbitrator(arbitratorAddress).appeal.value(msg.value)(disputeID, "");
     }
-
 
 
     /**

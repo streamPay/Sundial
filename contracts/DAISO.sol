@@ -112,7 +112,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
     constructor() public {
         OwnableWithoutRenounce.initialize(msg.sender);
         PausableWithoutRenounce.initialize(msg.sender);
-        arbitratorAddress = address(0xc4F7fD9EB7825669d4e46F1b58997afE79864B1E);
+        arbitratorAddress = address(0x6A498861dD1f4e9C58Aa6a5Eee34C45aA890Df9E);
         nextStreamId = 1;
         nextProjectId = 1;
     }
@@ -328,7 +328,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
                 Types.Stream storage stream = streams[project.streamId[i]];
                 (,uint256 nowBalance) = investBalanceOf(project.streamId[i]);
                 streams[project.streamId[i]].voteForWight = nowBalance;
-                emit LaunchProposal(projectId, project.streamId[i], amount, block.timestamp, block.timestamp + 86400, stream.sender, nowBalance);
+                emit LaunchProposal(projectId, project.streamId[i], amount, block.timestamp, block.timestamp + 600, stream.sender, nowBalance);
             }
         }
         return true;
@@ -338,7 +338,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      * @notice investor vote for proposal of project's withdrawl.
      * @dev Throws if the proposal.startTime is zero.
      *  Throws if the now not exceeds proposals start time.
-     *  Throws if the now exceeds proposals start time + 86400.
+     *  Throws if the now exceeds proposals start time + 600.
      * @param streamId The id of the investor stream for vote.
      * @param voteResult The result of vote. pass is 1, notPass is 2.
      * @return bool true=success, otherwise false.
@@ -352,8 +352,8 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         Types.Stream storage stream = streams[streamId];
 
         require(proposals[stream.projectId].startTime != 0,"No proposal for vote");
-        require(block.timestamp < proposals[stream.projectId].startTime + 86400,"block.timestamp is bigger than the proposal startTime + 86400");
-        require(stream.isVote == Types.IsVote.NoVote);
+        require(block.timestamp < proposals[stream.projectId].startTime + 600,"block.timestamp is bigger than the proposal startTime + 600");
+        require(stream.isVote == Types.IsVote.NoVote,"Have been voted!");
 
         if (voteResult == 1) {
             streams[streamId].voteResult = Types.VoteResult.Pass;
@@ -372,7 +372,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      *  Throws if the Types.Status is Disputed.
      *  Throws if the project id does not point to a valid project stream.
      *  Throws if the project.proposalForCancelStatus is one.
-     *  Throws if the now not exceeds proposal.starttime + 86400(vote time).
+     *  Throws if the now not exceeds proposal.starttime + 600(vote time).
      * @param projectId The id of the project stream for Withdrawl.
      * @return bool true=success, otherwise false.
      * @return pass that how many vote weight.
@@ -392,7 +392,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         require(proposal.startTime != 0,"The proposal is not exit");
         require(arbitrations[projectId].status != Types.Status.Disputed,"project have disputed");
         require(cancelProjectForInvests[projectId].proposalForCancelStatus != 1,"project loss arbitration");
-        require(block.timestamp >= proposal.startTime + 86400,"the vote is not finish");
+        require(block.timestamp >= proposal.startTime + 600,"the vote is not finish");
 
         bool result;
         uint256 pass;
@@ -761,7 +761,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      * @param projectId The id of the project stream for get CancelProjectForInvest info.
      * @return The CancelProjectForInvest object.
      */
-    function getCancelProjectForInvest(uint256 projectId)
+    function getCancelProjectForInvestAndProposal(uint256 projectId)
         external
         view
         projectExists(projectId)
@@ -770,7 +770,9 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
             uint256 exitProjectFundBalance,
             uint256 exitStartTime,
             uint256 exitStopTime,
-            uint256 proposalForCancelStatus
+            uint256 proposalForCancelStatus,
+            uint256 amount,
+            uint256 startTime
         )
     {
         exitProjectSellBalance = cancelProjectForInvests[projectId].exitProjectSellBalance;
@@ -778,23 +780,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         exitStartTime = cancelProjectForInvests[projectId].exitStartTime;
         exitStopTime = cancelProjectForInvests[projectId].exitStopTime;
         proposalForCancelStatus = cancelProjectForInvests[projectId].proposalForCancelStatus;
-    }
-
-    /**
-     * @notice Returns the project with all its properties.
-     * @dev Throws if the project id does not point to a valid project stream.
-     * @param projectId The id of the project stream for get proposal info.
-     * @return The Proposal object.
-     */
-    function getProposal(uint256 projectId)
-        external
-        view
-        projectExists(projectId)
-        returns (
-            uint256 amount,
-            uint256 startTime
-        )
-    {
         amount = proposals[projectId].amount;
         startTime = proposals[projectId].startTime;
     }
@@ -814,8 +799,8 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         Types.Project storage project = projects[projectId];
 
         require(arbitrations[projectId].reclaimedAt == 0,"This project already have arbitration");
-        require(block.timestamp >= project.startTime);
-        require(block.timestamp <= cancelProjectForInvests[projectId].exitStopTime);
+        require(block.timestamp >= project.startTime,"The project is not start");
+        require(block.timestamp <= cancelProjectForInvests[projectId].exitStopTime,"The project is finish");
 
         arbitrations[projectId] = Types.Arbitration({
             invest: msg.sender,
@@ -828,7 +813,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         });
 
         emit MetaEvidence(projectId, _metaEvidence);
-        emit Arbitration(projectId, project.sender, msg.sender, projectId, block.timestamp);
+        emit Arbitration(projectId, _metaEvidence, project.sender, msg.sender,msg.value, block.timestamp);
     }
 
     /**
@@ -931,7 +916,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
             arbitration.project.transfer(arbitration.projectFeeDeposit);
         } else if (_ruling == 0) {
             arbitration.invest.transfer(arbitration.investFeeDeposit);
-            arbitration.project.transfer(arbitration.projectFeeDeposit);
         }
         emit Ruling(IArbitrator(msg.sender), _disputeID, _ruling);
     }
