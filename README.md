@@ -1,4 +1,4 @@
-# DAISO: A project fundraising (Token Swap) scheme
+# DAISO: A Continuous Token Swap scheme
 
 ## Background
 The collapse of ICO...
