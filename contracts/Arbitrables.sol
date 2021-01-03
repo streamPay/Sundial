@@ -13,20 +13,7 @@ contract Arbitrables{
         arbitratorAddress = address(0x6A498861dD1f4e9C58Aa6a5Eee34C45aA890Df9E);
     }
 
-    /**
-     * @notice project or investors appeal.
-     * @dev Throws if the status is not Appealable.
-     * @param disputeID The id of the project arbitration for which to query the delta.
-     */
-    function appeal(uint256 disputeID) public payable {
-        /* verify msg.value is same as appealCost*/
-        require(msg.value == appealCost(disputeID));
 
-        IArbitrator.DisputeStatus status = IArbitrator(arbitratorAddress).disputeStatus(disputeID);
-
-        require(status == IArbitrator.DisputeStatus.Appealable);
-        IArbitrator(arbitratorAddress).appeal.value(msg.value)(disputeID, "");
-    }
 
 
     /**

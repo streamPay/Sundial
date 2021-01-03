@@ -81,10 +81,11 @@ interface DAISOInterface {
     );
 
     event Arbitration(
-        uint256 projectId,
+        uint256 indexed projectId,
+        string _metaEvidence,
         address indexed project,
         address indexed invest,
-        uint256 indexed _metaEvidenceId,
+        uint256 arbitrationCost,
         uint256 reclaimedAt
     );
 }
