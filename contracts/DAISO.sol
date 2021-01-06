@@ -326,9 +326,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         for(uint i = 0; i < project.streamId.length; i++) {
             if(project.streamId[i] != 0) {
                 Types.Stream storage stream = streams[project.streamId[i]];
-                (,uint256 nowBalance) = investBalanceOf(project.streamId[i]);
-                streams[project.streamId[i]].voteForWight = nowBalance;
-                emit LaunchProposal(projectId, project.streamId[i], amount, block.timestamp, block.timestamp + 600, stream.sender, nowBalance);
+                emit LaunchProposal(projectId, project.streamId[i], amount, block.timestamp, block.timestamp + 600, stream.sender);
             }
         }
         return true;
@@ -356,6 +354,9 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         require(stream.isVote == Types.IsVote.NoVote,"21");
         require(voteResult == 1 || voteResult == 2,"55");
 
+        (,uint256 nowBalance) = investBalanceOf(streamId);
+        streams[streamId].voteForWight = nowBalance;
+
         if (voteResult == 1) {
             streams[streamId].voteResult = Types.VoteResult.Pass;
         } else if (voteResult == 2) {
@@ -363,7 +364,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         }
         streams[streamId].isVote = Types.IsVote.Voted;
 
-        emit VoteForInvest(stream.projectId, streamId, voteResult, stream.voteForWight);
+        emit VoteForInvest(stream.projectId, streamId, voteResult, nowBalance);
         return true;
     }
 
