@@ -30,6 +30,7 @@ function shouldBehaveLikeProjectRefunds(alice, bob) {
     const sellDeposit = PROJECT_SELL.toString(10);
     const fundDeposit = PROJECT_FUND.toString(10);
     const amount = INVEST_SELL_BOB.toString(10);
+    const lockPeriod = 10000;
 
     beforeEach(async function() {
         await traveler.advanceBlockAndSetTime(now.toNumber());
@@ -41,6 +42,7 @@ function shouldBehaveLikeProjectRefunds(alice, bob) {
             fundDeposit,
             startTime,
             stopTime,
+            lockPeriod,
             hash,
             { from: project }
         );
@@ -80,23 +82,23 @@ function shouldBehaveLikeProjectRefunds(alice, bob) {
                 contextForStreamDidStartButNotEnd(function() {
                     const projectSell = INVESTOR_STREAM_FOR_FIVE.multipliedBy(10).toString()
 
-                    it("project refunds with arbitration loss,  and transfer to project", async function() {
-                        await this.DAISO.test(projectId, { from: project })
-                        const balance = await this.xtestDAI.balanceOf(project, { from: project });
-                        await traveler.advanceBlockAndSetTime(now.plus(STANDARD_TIME_OFFSET).plus(STANDARD_TIME_DELTA).plus(31536000).toNumber());
-                        await this.DAISO.projectRefunds(projectId, { from: project })
-                        const newBalance = await this.xtestDAI.balanceOf(project, { from: project });
-                        newBalance.should.be.bignumber.equal(balance.plus(sellDeposit).minus(projectSell));
-                    });
+                    // it("project refunds with arbitration loss,  and transfer to project", async function() {
+                    //     await this.DAISO.test(projectId, { from: project })
+                    //     const balance = await this.xtestDAI.balanceOf(project, { from: project });
+                    //     await traveler.advanceBlockAndSetTime(now.plus(STANDARD_TIME_OFFSET).plus(STANDARD_TIME_DELTA).plus(31536000).toNumber());
+                    //     await this.DAISO.projectRefunds(projectId, { from: project })
+                    //     const newBalance = await this.xtestDAI.balanceOf(project, { from: project });
+                    //     newBalance.should.be.bignumber.equal(balance.plus(sellDeposit).minus(projectSell));
+                    // });
 
-                    it("project refunds with arbitration loss,  and transfer to project", async function() {
-                        await this.DAISO.test(projectId, { from: project })
-                        const balance = await this.testDAI.balanceOf(project, { from: project });
-                        await traveler.advanceBlockAndSetTime(now.plus(STANDARD_TIME_OFFSET).plus(STANDARD_TIME_DELTA).plus(31536000).toNumber());
-                        await this.DAISO.projectRefunds(projectId, { from: project })
-                        const newBalance = await this.testDAI.balanceOf(project, { from: project });
-                        newBalance.should.be.bignumber.equal(balance.plus(INVESTOR_STREAM_FOR_FIVE));
-                    });
+                    // it("project refunds with arbitration loss,  and transfer to project", async function() {
+                    //     await this.DAISO.test(projectId, { from: project })
+                    //     const balance = await this.testDAI.balanceOf(project, { from: project });
+                    //     await traveler.advanceBlockAndSetTime(now.plus(STANDARD_TIME_OFFSET).plus(STANDARD_TIME_DELTA).plus(31536000).toNumber());
+                    //     await this.DAISO.projectRefunds(projectId, { from: project })
+                    //     const newBalance = await this.testDAI.balanceOf(project, { from: project });
+                    //     newBalance.should.be.bignumber.equal(balance.plus(INVESTOR_STREAM_FOR_FIVE));
+                    // });
                 });
             });
 
@@ -105,7 +107,7 @@ function shouldBehaveLikeProjectRefunds(alice, bob) {
                     await traveler.advanceBlockAndSetTime(now.plus(STANDARD_TIME_OFFSET).plus(STANDARD_TIME_DELTA).toNumber());
                     await truffleAssert.reverts(
                         this.DAISO.projectRefunds(projectId, { from: project }),
-                        "now is smaller than stopTime",
+                        "13",
                     );
                 });
             })
@@ -117,7 +119,7 @@ function shouldBehaveLikeProjectRefunds(alice, bob) {
 
                 await truffleAssert.reverts(
                     this.DAISO.projectRefunds(projectId, { from: invest_bob }),
-                    "caller is not the sender of the project stream",
+                    "2",
                 );
             });
         })
@@ -127,7 +129,7 @@ function shouldBehaveLikeProjectRefunds(alice, bob) {
         it("reverts", async function() {
             await truffleAssert.reverts(
                 this.DAISO.projectRefunds("1232", { from: project }),
-                "project does not exist",
+                "4",
             );
         });
     });

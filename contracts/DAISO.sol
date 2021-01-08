@@ -331,7 +331,8 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         proposals[projectId] = Types.Proposal({
             amount: amount,
             startTime: block.timestamp,
-            delta: delta
+            delta: delta,
+            streamId: new uint256[](0)
         });
 
         return true;
@@ -350,28 +351,25 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         external
         investExists(streamId)
         onlyInvest(streamId)
-        returns(bool)
+        return(bool)
     {
         Types.Stream storage stream = streams[streamId];
         Types.Proposal storage proposal = proposals[stream.projectId];
 
-        require(proposals[stream.projectId].startTime != 0,"19");
-        require(block.timestamp < proposals[stream.projectId].startTime + 600,"20");
+        require(proposal.startTime != 0,"19");
+        require(block.timestamp < proposal.startTime + 600,"20");
         require(stream.isVote == Types.IsVote.NoVote,"21");
         require(voteResult == 1 || voteResult == 2,"55");
 
-        uint256 investFundBalance= proposal.delta.mul(stream.ratePerSecondOfInvestFund);
-        investFundBalance = investFundBalance.sub(stream.investWithdrawalAmount);
-
-        streams[streamId].voteWight = investFundBalance;
         if (voteResult == 1) {
-            streams[streamId].voteResult = Types.VoteResult.Pass;
+            stream.voteResult = Types.VoteResult.Pass;
         } else if (voteResult == 2) {
-            streams[streamId].voteResult = Types.VoteResult.NotPass;
+            stream.voteResult = Types.VoteResult.NotPass;
         }
-        streams[streamId].isVote = Types.IsVote.Voted;
+        stream.isVote = Types.IsVote.Voted;
+        proposal.streamId.push(streamId);
 
-        emit VoteForInvest(stream.projectId, streamId, voteResult, investFundBalance);
+        emit VoteForInvest(stream.projectId, streamId, voteResult);
         return true;
     }
 
@@ -393,7 +391,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         nonReentrant
         projectExists(projectId)
         onlyProject(projectId)
-        returns(bool,uint256,uint256)
+        returns(bool result,uint256 pass,uint256 notPass)
     {
         Types.Proposal storage proposal = proposals[projectId];
         Types.Project storage project = projects[projectId];
@@ -403,21 +401,21 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         require(cancelProjectForInvests[projectId].proposalForCancelStatus != 1,"24");
         require(block.timestamp >= proposal.startTime + 600,"25");
 
-        bool result;
-        uint256 pass;
-        uint256 notPass;
+        uint256 _delta = proposal.delta;
+        uint256 _totalStreams = proposal.streamId.length;
 
-        for(uint i = 0; i < project.streamId.length; i++) {
-            Types.Stream storage stream = streams[project.streamId[i]];
+        for(uint i = 0; i < _totalStreams; i++) {
+            Types.Stream storage stream = streams[proposal.streamId[i]];
 
-            if (stream.isVote == Types.IsVote.Voted){
-                if (stream.voteResult == Types.VoteResult.Pass) {
-                    pass = pass + stream.voteWight;
-                    streams[project.streamId[i]].isVote = Types.IsVote.NoVote;
-                } else if (stream.voteResult == Types.VoteResult.NotPass) {
-                    notPass = notPass + stream.voteWight;
-                    streams[project.streamId[i]].isVote = Types.IsVote.NoVote;
-                }
+            uint256 investFundBalance= _delta.mul(stream.ratePerSecondOfInvestFund);
+            investFundBalance = investFundBalance.sub(stream.investWithdrawalAmount);
+
+            if (stream.voteResult == Types.VoteResult.Pass) {
+                pass = pass + investFundBalance;
+                stream.isVote = Types.IsVote.NoVote;
+            } else if (stream.voteResult == Types.VoteResult.NotPass) {
+                notPass = notPass + investFundBalance;
+                stream.isVote = Types.IsVote.NoVote;
             }
         }
 
@@ -429,10 +427,10 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         } else if (pass < notPass) {
             result = false;
         }
+
         delete proposals[projectId];
         return (result,pass,notPass);
     }
-
     /*** Investor Functions ***/
 
     /**
@@ -490,7 +488,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
             ratePerSecondOfInvestFund: ratePerSecondOfInvestFund,
             sender: msg.sender,
             investWithdrawalAmount:0,
-            voteWight:0,
             voteResult:Types.VoteResult.NotPass,
             isVote: Types.IsVote.NoVote
         });
@@ -746,7 +743,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
             uint256 investWithdrawalAmount,
             uint256 ratePerSecondOfInvestSell,
             uint256 ratePerSecondOfInvestFund,
-            uint256 voteWight,
             Types.VoteResult voteResult,
             Types.IsVote isVote
         )
@@ -758,7 +754,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         investWithdrawalAmount = streams[streamId].investWithdrawalAmount;
         ratePerSecondOfInvestSell = streams[streamId].ratePerSecondOfInvestSell;
         ratePerSecondOfInvestFund = streams[streamId].ratePerSecondOfInvestFund;
-        voteWight = streams[streamId].voteWight;
         voteResult = streams[streamId].voteResult;
         isVote = streams[streamId].isVote;
     }
@@ -805,12 +800,14 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         returns (
             uint256 amount,
             uint256 startTime,
-            uint256 delta
+            uint256 delta,
+            uint256[] memory streamId
         )
     {
         amount = proposals[projectId].amount;
         startTime = proposals[projectId].startTime;
         delta = proposals[projectId].delta;
+        streamId = proposals[projectId].streamId;
     }
 
     /**

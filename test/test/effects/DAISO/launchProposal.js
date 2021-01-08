@@ -32,7 +32,7 @@ function shouldBehaveLikeLaunchProposal(alice, bob, carol) {
     const fundDeposit = PROJECT_FUND.toString(10);
     const projectFund = INVESTOR_STREAM_FOR_FIVE.toString(10);
     const amount = INVEST_SELL_BOB.toString(10);
-
+    const lockPeriod = 10000;
     beforeEach(async function() {
         await this.xtestDAI.approve(this.DAISO.address, PROJECT_SELL.toString(10), { from: project });
         const result = await this.DAISO.createProject(
@@ -42,6 +42,7 @@ function shouldBehaveLikeLaunchProposal(alice, bob, carol) {
             fundDeposit,
             startTime,
             stopTime,
+            lockPeriod,
             hash,
             { from: project }
         );
@@ -75,7 +76,6 @@ function shouldBehaveLikeLaunchProposal(alice, bob, carol) {
                                 await this.DAISO.launchProposal(projectId, projectFund, { from: project });
 
                                 const result = await this.DAISO.getStream(streamId, { from: invest_bob })
-                                result.voteForWight.should.be.bignumber.equal(INVESTOR_STREAM_FOR_FIVE.multipliedBy(10));
                                 result.voteResult.should.be.bignumber.equal(0);
                                 result.isVote.should.be.bignumber.equal(0);
                             });
@@ -117,7 +117,6 @@ function shouldBehaveLikeLaunchProposal(alice, bob, carol) {
                             it("returns the projectSellBalance of the streamId", async function() {
                                 await this.DAISO.launchProposal(projectId, projectFund, { from: project });
                                 const result = await this.DAISO.getStream(streamId, { from: invest_bob })
-                                result.voteForWight.should.be.bignumber.equal(INVESTOR_STREAM_FOR_FIVE.multipliedBy(10));
                                 result.voteResult.should.be.bignumber.equal(0);
                                 result.isVote.should.be.bignumber.equal(0);
                             });
@@ -125,7 +124,6 @@ function shouldBehaveLikeLaunchProposal(alice, bob, carol) {
                             it("returns the projectSellBalance of the streamId1", async function() {
                                 await this.DAISO.launchProposal(projectId, projectFund, { from: project });
                                 const result = await this.DAISO.getStream(streamId1, { from: invest_bob })
-                                result.voteForWight.should.be.bignumber.equal(INVESTOR_STREAM_FOR_FIVE.multipliedBy(20));
                                 result.voteResult.should.be.bignumber.equal(0);
                                 result.isVote.should.be.bignumber.equal(0);
                             });
@@ -205,7 +203,6 @@ function shouldBehaveLikeLaunchProposal(alice, bob, carol) {
 
                             it("returns the projectSellBalance of the streamId", async function() {
                                 const result = await this.DAISO.getStream(streamId, { from: invest_bob })
-                                result.voteForWight.should.be.bignumber.equal(INVESTOR_STREAM_FOR_FIVE.multipliedBy(10));
                                 result.voteResult.should.be.bignumber.equal(0);
                                 result.isVote.should.be.bignumber.equal(0);
                             });
@@ -219,7 +216,7 @@ function shouldBehaveLikeLaunchProposal(alice, bob, carol) {
                         it("revert", async function() {
                             await truffleAssert.reverts(
                                 this.DAISO.launchProposal(projectId,projectFund, { from: project }),
-                                "amount exceeds the available balance",
+                                "18",
                             );
                         });
                     });
@@ -230,7 +227,7 @@ function shouldBehaveLikeLaunchProposal(alice, bob, carol) {
                         it("revert", async function() {
                             await truffleAssert.reverts(
                                 this.DAISO.launchProposal(projectId,"0", { from: project }),
-                                "amount is zero",
+                                "16",
                             );
                         });
                     });
@@ -243,7 +240,7 @@ function shouldBehaveLikeLaunchProposal(alice, bob, carol) {
                         await this.DAISO.launchProposal(projectId,projectFund, { from: project });
                         await truffleAssert.reverts(
                             this.DAISO.launchProposal(projectId,projectFund, { from: project }),
-                            "The proposal is not finish",
+                            "17",
                         );
                     });
                 });
@@ -256,7 +253,7 @@ function shouldBehaveLikeLaunchProposal(alice, bob, carol) {
                 it("revert", async function() {
                     await truffleAssert.reverts(
                         this.DAISO.launchProposal(projectId, projectFund, { from: invest_bob }),
-                        "caller is not the sender of the project stream",
+                        "2",
                     );
                 });
             });
@@ -267,7 +264,7 @@ function shouldBehaveLikeLaunchProposal(alice, bob, carol) {
         it("reverts", async function() {
             await truffleAssert.reverts(
                 this.DAISO.launchProposal(1232, projectFund, { from: project }),
-                "project does not exist",
+                "4",
             );
         });
     });

@@ -33,6 +33,7 @@ function shouldBehaveLikeVotingResult(alice, bob, carol) {
     const amount = INVEST_SELL_BOB.toString(10);
     const amount1 = INVEST_SELL_CAROL.toString(10);
     const projectFund = INVESTOR_STREAM_FOR_FIVE.multipliedBy(3).toString(10);
+    const lockPeriod = 10000;
 
     beforeEach(async function() {
         await traveler.advanceBlockAndSetTime(now.toNumber());
@@ -45,6 +46,7 @@ function shouldBehaveLikeVotingResult(alice, bob, carol) {
             fundDeposit,
             startTime,
             stopTime,
+            lockPeriod,
             hash,
             { from: project }
         );
@@ -171,30 +173,31 @@ function shouldBehaveLikeVotingResult(alice, bob, carol) {
                         it("reverts", async function() {
                             await traveler.advanceBlockAndSetTime(now
                                 .plus(STANDARD_TIME_OFFSET)
-                                .plus(86404)
+                                .plus(604)
                                 .toNumber());
+
 
                             await truffleAssert.reverts(
                                 this.DAISO.votingResult(projectId, { from: project }),
-                                "the vote is not finish",
+                                "25",
                             );
                         });
                     })
                 });
 
-                describe("when the project loss arbitration", function() {
-                    it("reverts", async function() {
-                        await this.DAISO.test(projectId, { from: project })
-                        await traveler.advanceBlockAndSetTime(now
-                            .plus(STANDARD_TIME_OFFSET)
-                            .plus(86405)
-                            .toNumber());
-                        await truffleAssert.reverts(
-                            this.DAISO.votingResult(projectId, { from: project }),
-                            "project loss arbitration",
-                        );
-                    });
-                });
+                // describe("when the project loss arbitration", function() {
+                //     it("reverts", async function() {
+                //         await this.DAISO.test(projectId, { from: project })
+                //         await traveler.advanceBlockAndSetTime(now
+                //             .plus(STANDARD_TIME_OFFSET)
+                //             .plus(86405)
+                //             .toNumber());
+                //         await truffleAssert.reverts(
+                //             this.DAISO.votingResult(projectId, { from: project }),
+                //             "project loss arbitration",
+                //         );
+                //     });
+                // });
             });
 
             describe("when the proposal is not exit", function() {
@@ -206,7 +209,7 @@ function shouldBehaveLikeVotingResult(alice, bob, carol) {
 
                     await truffleAssert.reverts(
                         this.DAISO.votingResult(projectId, { from: project }),
-                        "The proposal is not exit",
+                        "22",
                     );
                 });
             });
@@ -216,7 +219,7 @@ function shouldBehaveLikeVotingResult(alice, bob, carol) {
             it("reverts", async function() {
                 await truffleAssert.reverts(
                     this.DAISO.projectRefunds(projectId, { from: invest_bob }),
-                    "caller is not the sender of the project stream",
+                    "2",
                 );
             });
         })
@@ -225,7 +228,7 @@ function shouldBehaveLikeVotingResult(alice, bob, carol) {
         it("reverts", async function() {
             await truffleAssert.reverts(
                 this.DAISO.projectRefunds("1232", { from: project }),
-                "project does not exist",
+                "4",
             );
         });
     });

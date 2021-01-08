@@ -19,6 +19,7 @@ function shouldBehaveLikeCreateProject(alice, bob) {
     const sender = alice;
     const opts = { from: sender };
     const now = new BigNumber(dayjs().unix());
+    const lockPeriod = 10000;
     describe("when not paused", function() {
         describe("when the contract has enough allowance", function() {
             beforeEach(async function() {
@@ -43,6 +44,7 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                                     fundDeposit,
                                     startTime,
                                     stopTime,
+                                    lockPeriod,
                                     hash,
                                     opts
                                 );
@@ -57,6 +59,7 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                                     fundDeposit,
                                     startTime,
                                     stopTime,
+                                    lockPeriod,
                                     hash,
                                     opts
                                 );
@@ -82,6 +85,7 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                                     fundDeposit,
                                     startTime,
                                     stopTime,
+                                    lockPeriod,
                                     hash,
                                     opts
                                 );
@@ -98,6 +102,7 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                                     fundDeposit,
                                     startTime,
                                     stopTime,
+                                    lockPeriod,
                                     hash,
                                     opts
                                 );
@@ -113,10 +118,11 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                                     fundDeposit,
                                     startTime,
                                     stopTime,
+                                    lockPeriod,
                                     hash,
                                     opts
                                 );
-                                const projectObject = await this.DAISO.getCancelProjectForInvest(Number(result.logs[0].args.projectId));
+                                const projectObject = await this.DAISO.getCancelProjectForInvestAndProposal(Number(result.logs[0].args.projectId));
                                 projectObject.exitStartTime.should.be.bignumber.equal(startTime);
                                 projectObject.exitStopTime.should.be.bignumber.equal(stopTime);
                             });
@@ -135,10 +141,11 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                                         fundDeposit,
                                         startTime,
                                         stopTime,
+                                        lockPeriod,
                                         hash,
                                         opts
                                     ),
-                                    "project stop time before the start time",
+                                    "9",
                                 );
                             });
                         });
@@ -157,10 +164,11 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                                     fundDeposit,
                                     startTime,
                                     stopTime,
+                                    lockPeriod,
                                     hash,
                                     opts
                                 ),
-                                "project start time before block.timestamp",
+                                "8",
                             );
                         });
                     });
@@ -180,10 +188,11 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                                     fundDeposit,
                                     startTime,
                                     stopTime,
+                                    lockPeriod,
                                     hash,
                                     opts
                                 ),
-                                "projectSellDeposit not multiple of time delta",
+                                "10",
                             );
                         });
                     });
@@ -203,10 +212,11 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                                     fundDeposit,
                                     startTime,
                                     stopTime,
+                                    lockPeriod,
                                     hash,
                                     opts
                                 ),
-                                "projectFundDeposit not multiple of time delta",
+                                "11",
                             );
                         });
                     });
@@ -229,10 +239,11 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                                 fundDeposit,
                                 startTime,
                                 stopTime,
+                                lockPeriod,
                                 hash,
                                 opts
                             ),
-                            "projectSellDeposit is zero",
+                            "6",
                         );
                     });
                 });
@@ -249,10 +260,11 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                                 fundDeposit,
                                 startTime,
                                 stopTime,
+                                lockPeriod,
                                 hash,
                                 opts
                             ),
-                            "projectFundDeposit is zero",
+                            "7",
                         );
                     });
                 });
@@ -274,6 +286,7 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                         fundDeposit,
                         startTime,
                         stopTime,
+                        lockPeriod,
                         hash,
                         opts
                     ),
@@ -306,6 +319,7 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                         fundDeposit,
                         startTime,
                         stopTime,
+                        lockPeriod,
                         hash,
                         opts
                     ),
@@ -327,6 +341,7 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                         fundDeposit,
                         startTime,
                         stopTime,
+                        lockPeriod,
                         hash,
                         opts
                     ),
@@ -356,6 +371,7 @@ function shouldBehaveLikeCreateProject(alice, bob) {
                     fundDeposit,
                     startTime,
                     stopTime,
+                    lockPeriod,
                     hash,
                     opts
                 ),
