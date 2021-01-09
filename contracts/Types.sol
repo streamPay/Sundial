@@ -14,6 +14,7 @@ library Types{
         address projectFundTokenAddress;
         uint256[] streamId;
         uint256 duration;
+        uint256 lockPeriod;
     }
 
     enum VoteResult {NotPass, Pass}
@@ -27,7 +28,6 @@ library Types{
         uint256 ratePerSecondOfInvestFund;
         address sender;
         uint256 investWithdrawalAmount;
-        uint256 voteForWight;
         VoteResult voteResult;
         IsVote isVote;
     }
@@ -44,6 +44,8 @@ library Types{
     struct Proposal {
         uint256 amount;
         uint256 startTime;
+        uint256 delta;
+        uint256[] streamId;
     }
 
     enum Status {Initial, Reclaimed, Disputed, Resolved}
@@ -54,7 +56,7 @@ library Types{
         Status status;
         uint256 disputeID;
         uint256 reclaimedAt;
-        uint256 investFeeDeposit;
+        uint256 feeDeposit;
         uint256 projectFeeDeposit;
     }
 

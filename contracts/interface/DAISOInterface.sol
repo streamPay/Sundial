@@ -6,32 +6,19 @@ interface DAISOInterface {
     event CreateProject(
         uint256 indexed projectId,
         address indexed sender,
-        address projectSellTokenAddress,
-        uint256 projectSellDeposit,
-        address projectFundTokenAddress,
-        uint256 projectFundDeposit,
-        uint256 startTime,
-        uint256 stopTime,
         string hash
     );
 
-    event CreateStream(uint256 indexed streamId, address indexed sender, uint256 projectId, uint256 investSellDeposit,
-        uint256 investFundDeposit, uint256 startTime, uint256 stopTime);
+    event CreateStream(uint256 indexed streamId, address indexed sender);
 
     event LaunchProposal(
-        uint256 indexed projectId,
         uint256 indexed streamId,
-        uint256 amount,
-        uint256 startTime,
-        uint256 stopTime,
-        address indexed sender,
-        uint256 weight
+        address indexed sender
     );
 
     event VoteForInvest(
         uint256 indexed projectId,
         uint256 indexed streamId,
-        uint256 weight,
         uint256 voteResult
     );
 
@@ -73,11 +60,6 @@ interface DAISOInterface {
         uint256 investSellBalance,
         uint256 investFundBalance,
         uint256 cancelTime
-    );
-
-    event RullingResult(
-        uint256 indexed projectId,
-        uint256 rulling
     );
 
     event Arbitration(

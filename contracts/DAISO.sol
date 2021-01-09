@@ -226,7 +226,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         uint256 ratePerSecondOfProjectFund = remainOfFundStream.div(duration);
 
         uint256 delta = deltaOfForProject(projectId);
-        projectFundBalance = delta.mul(ratePerSecondOfProjectFund);
+        projectFundBalance = delta * ratePerSecondOfProjectFund;
 
         projectFundBalance = cancelProjectForInvest.exitProjectFundBalance.add(projectFundBalance);
 
@@ -245,7 +245,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         /* unStream deposit div noStream duration is new ratePerSecond */
         uint256 ratePerSecondOfProjectSell = remainOfSellStream.div(duration);
 
-        projectSellBalance = delta.mul(ratePerSecondOfProjectSell);
+        projectSellBalance = delta * ratePerSecondOfProjectSell;
 
         /* unStream deposit minus new already stream */
         projectSellBalance = remainOfSellStream.sub(projectSellBalance);
@@ -351,7 +351,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         external
         investExists(streamId)
         onlyInvest(streamId)
-        return(bool)
+        returns(bool)
     {
         Types.Stream storage stream = streams[streamId];
         Types.Proposal storage proposal = proposals[stream.projectId];
@@ -407,8 +407,8 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         for(uint i = 0; i < _totalStreams; i++) {
             Types.Stream storage stream = streams[proposal.streamId[i]];
 
-            uint256 investFundBalance= _delta.mul(stream.ratePerSecondOfInvestFund);
-            investFundBalance = investFundBalance.sub(stream.investWithdrawalAmount);
+            uint256 investFundBalance= _delta * stream.ratePerSecondOfInvestFund;
+            investFundBalance = investFundBalance - stream.investWithdrawalAmount;
 
             if (stream.voteResult == Types.VoteResult.Pass) {
                 pass = pass + investFundBalance;
@@ -530,11 +530,10 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         Types.Stream storage stream = streams[streamId];
 
         uint256 delta = deltaOf(streamId);
-        investFundBalance = delta.mul(stream.ratePerSecondOfInvestFund);
-
+        investFundBalance = delta * stream.ratePerSecondOfInvestFund;
         investFundBalance = investFundBalance.sub(stream.investWithdrawalAmount);
 
-        investSellBalance = delta.mul(stream.ratePerSecondOfInvestSell);
+        investSellBalance = delta * stream.ratePerSecondOfInvestSell;
         investSellBalance = stream.investSellDeposit.sub(investSellBalance);
 
         return (investSellBalance,investFundBalance);
