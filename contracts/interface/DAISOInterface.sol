@@ -26,7 +26,8 @@ interface DAISOInterface {
         uint256 indexed projectId,
         uint256 amount,
         uint256 pass,
-        uint256 notPass
+        uint256 notPass,
+        uint256 startTime
     );
 
     event CancelProject(
@@ -41,8 +42,7 @@ interface DAISOInterface {
 
     event CancelProjectForProject (
         uint256 indexed projectId,
-        uint256 projectSellBalance,
-        uint256 projectFundBalance
+        uint256 projectSellBalance
     );
 
 /* DAISOForInvest */
