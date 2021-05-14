@@ -45,7 +45,7 @@ interface IEvidence {
     event Dispute(
         IArbitrator indexed _arbitrator,
         uint256 indexed _disputeID,
-        uint256 indexed _metaEvidenceID,
+        uint256 _metaEvidenceID,
         uint256 _evidenceGroupID
     );
 }

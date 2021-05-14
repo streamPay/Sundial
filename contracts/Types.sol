@@ -15,6 +15,7 @@ library Types{
         uint256 lockPeriod;
         uint256[] streamId;
         string hash;
+        uint8 refunded;
     }
 
     enum VoteResult {NotPass, Pass}
@@ -60,6 +61,7 @@ library Types{
         Status status;
         uint256 disputeID;
         uint256 evidenceGroup;
+        uint256 metaEvidenceID;
         uint256 reclaimedAt;
         uint256 feeDeposit;
         uint256 projectFeeDeposit;

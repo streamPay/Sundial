@@ -35,9 +35,14 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
     uint256 public nextProjectId;
 
     /**
-     * @notice Counter for project stream ids.
+     * @notice Counter for EvidenceGroup ids.
      */
     uint256 public nextEvidenceGroup;
+
+    /**
+     * @notice Counter for MetaEvidence ids.
+     */
+    uint256 public nextMetaEvidenceID;
 
     /**
      * @notice Address of IArbitrator.
@@ -121,6 +126,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         nextStreamId = 1;
         nextProjectId = 1;
         nextEvidenceGroup = 1;
+        nextMetaEvidenceID = 1;
     }
 
     /*** Project Functions ***/
@@ -178,7 +184,8 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
             projectFundTokenAddress: projectFundTokenAddress,
             streamId: new uint256[](0),
             lockPeriod: lockPeriod,
-            hash: hash
+            hash: hash,
+            refunded:0
         });
 
         cancelProjectForInvests[projectId].exitStopTime = stopTime;
@@ -242,11 +249,14 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         Types.Project storage project = projects[projectId];
 
         require(block.timestamp >= project.stopTime.add(project.lockPeriod),"13");
+        require(project.refunded == 0,"57");
 
         uint256 refunds = project.projectSellDeposit.sub(project.projectActualSellDeposit);
         (uint256 projectSellBalance,) = projectBalanceOf(projectId);
 
         projectSellBalance = refunds.add(projectSellBalance);
+
+        projects[projectId].refunded = 1;
 
         if (projectSellBalance > 0)
             require(IERC20(project.projectSellTokenAddress).transfer(project.sender, projectSellBalance), "14");
@@ -807,13 +817,15 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
             Types.Status status,
             uint256 disputeID,
             uint256 reclaimedAt,
-            uint256 evidenceGroup
+            uint256 evidenceGroup,
+            uint256 metaEvidenceID
         )
     {
         status = arbitrations[projectId].status;
         disputeID = arbitrations[projectId].disputeID;
         reclaimedAt = arbitrations[projectId].reclaimedAt;
         evidenceGroup = arbitrations[projectId].evidenceGroup;
+        metaEvidenceID = arbitrations[projectId].metaEvidenceID;
     }
 
     /**
@@ -834,18 +846,23 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         require(block.timestamp >= project.startTime,"42");
         require(block.timestamp < cancelProjectForInvests[projectId].exitStopTime,"43");
 
+        uint256 _metaEvidenceID = nextMetaEvidenceID;
+
         arbitrations[projectId] = Types.Arbitration({
             invest: msg.sender,
             project: project.sender,
             status: Types.Status.Reclaimed,
             disputeID: 0,
             evidenceGroup: 0,
+            metaEvidenceID: _metaEvidenceID,
             reclaimedAt: block.timestamp,
             feeDeposit: msg.value,
             projectFeeDeposit: 0
         });
 
-        emit MetaEvidence(projectId, _metaEvidence);
+        nextMetaEvidenceID = nextMetaEvidenceID + 1;
+
+        emit MetaEvidence(_metaEvidenceID, _metaEvidence);
         emit Arbitration(projectId, _metaEvidence, project.sender, msg.sender,msg.value, block.timestamp);
     }
 
@@ -892,9 +909,13 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         arbitrations[projectId].projectFeeDeposit = msg.value;
         arbitrations[projectId].disputeID = IArbitrator(arbitratorAddress).createDispute.value(msg.value)(2, "");
         arbitrations[projectId].status = Types.Status.Disputed;
+        arbitrations[projectId].evidenceGroup = nextEvidenceGroup;
+
+        nextEvidenceGroup = nextEvidenceGroup + 1;
 
         disputeIDtoArbitrationID[arbitration.disputeID] = projectId;
-        emit Dispute(IArbitrator(arbitratorAddress), arbitration.disputeID, projectId, projectId);
+
+        emit Dispute(IArbitrator(arbitratorAddress), arbitrations[projectId].disputeID, arbitrations[projectId].metaEvidenceID, arbitrations[projectId].evidenceGroup);
         return true;
     }
 
@@ -953,10 +974,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
 
         Types.Arbitration storage arbitration = arbitrations[projectId];
 
-        if (arbitration.evidenceGroup == 0) {
-            arbitration.evidenceGroup = nextEvidenceGroup;
-            nextEvidenceGroup = nextEvidenceGroup + 1;
-        }
         emit Evidence(IArbitrator(arbitratorAddress), arbitration.evidenceGroup, msg.sender, _evidence);
     }
 
