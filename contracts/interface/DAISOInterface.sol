@@ -11,23 +11,11 @@ interface DAISOInterface {
 
     event CreateStream(uint256 indexed streamId, address indexed sender);
 
-    event LaunchProposal(
-        uint256 indexed streamId,
-        address indexed sender
-    );
-
-    event VoteForInvest(
-        uint256 indexed projectId,
-        uint256 indexed streamId,
-        uint256 voteResult
-    );
-
     event WithdrawFromProject(
         uint256 indexed projectId,
-        uint256 amount,
-        uint256 pass,
-        uint256 notPass,
-        uint256 startTime
+        address indexed sender,
+        uint256 withdrawTime,
+        uint256 amount
     );
 
     event CancelProject(
@@ -50,6 +38,7 @@ interface DAISOInterface {
         uint256 indexed streamId,
         uint256 indexed projectId,
         address indexed sender,
+        uint256 withdrawTime,
         uint256 amount
     );
 
@@ -64,8 +53,9 @@ interface DAISOInterface {
 
     event Arbitration(
         uint256 indexed projectId,
+        uint256 indexed _metaEvidenceID,
         string _metaEvidence,
-        address indexed project,
+        address project,
         address indexed invest,
         uint256 arbitrationCost,
         uint256 reclaimedAt

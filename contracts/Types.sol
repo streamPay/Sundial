@@ -18,9 +18,6 @@ library Types{
         uint8 refunded;
     }
 
-    enum VoteResult {NotPass, Pass}
-    enum IsVote {NoVote, Voted}
-
     struct Stream {
         uint256 projectId;
         uint256 investSellDeposit;
@@ -31,26 +28,15 @@ library Types{
         uint256 stopTime;
         address sender;
         uint256 investWithdrawalAmount;
-        uint256 investCancelAmount;
-        VoteResult voteResult;
-        IsVote isVote;
     }
 
     struct CancelProjectForInvest {
         uint256 exitProjectSellBalance;
         uint256 exitProjectFundBalance;
-        uint256 exitStartTime;
         uint256 exitStopTime;
         uint256 sumForExistInvest;
         uint256 proposalForCancelStatus;
-        uint256 amount;
-        uint256 startTime;
-    }
-
-    struct Proposal {
-        uint256 amount;
-        uint256 startTime;
-        uint256[] streamId;
+        uint256 preReclaimedAt;
     }
 
     enum Status {Initial, Reclaimed, Disputed, Resolved}

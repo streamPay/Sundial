@@ -16,7 +16,7 @@ import "./interface/erc-1497/IEvidence.sol";
 
 /**
  * @title DAISO: StreamPay + DAICO + Kleros
- * @author StreamPay
+ * @author Sundial
  */
 
 contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithoutRenounce, ReentrancyGuard, DAISOInterface{
@@ -65,11 +65,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
     mapping(uint256 => Types.CancelProjectForInvest) public cancelProjectForInvests;
 
     /**
-     * @notice The Proposal objects identifiable by their unsigned integer ids.
-     */
-    mapping(uint256 => Types.Proposal) public proposals;
-
-    /**
      * @notice The arbitration objects identifiable by their unsigned integer ids.
      */
     mapping(uint256 => Types.Arbitration) public arbitrations;
@@ -85,7 +80,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
     modifier onlyInvest(uint256 streamId) {
         require(
             msg.sender == streams[streamId].sender,
-            "1"
+            "NOT_INVEST_SENDER"
         );
         _;
     }
@@ -96,7 +91,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
     modifier onlyProject(uint256 projectId) {
         require(
             msg.sender == projects[projectId].sender,
-            "2"
+            "NOT_PROJECT_SENDER"
         );
         _;
     }
@@ -105,7 +100,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      * @dev Throws if the stream id does not point to a valid stream.
      */
     modifier investExists(uint256 streamId) {
-        require(streams[streamId].sender != address(0x0), "3");
+        require(streams[streamId].sender != address(0x0), "STREAM_NOT_EXIT");
         _;
     }
 
@@ -113,7 +108,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      * @dev Throws if the project id does not point to a valid stream.
      */
     modifier projectExists(uint256 projectId) {
-        require(projects[projectId].sender != address(0x0), "4");
+        require(projects[projectId].sender != address(0x0), "PROJECT_NOT_EXIT");
         _;
     }
 
@@ -162,12 +157,12 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         whenNotPaused
         returns (uint256)
     {
-        require(projectSellTokenAddress != projectFundTokenAddress,"5");
-        require(projectSellDeposit > 0,"6");
-        require(projectFundDeposit > 0,"7");
-        require(startTime >= block.timestamp, "8");
-        require(stopTime > startTime, "9");
-        require(lockPeriod > 0, "56");
+        require(projectSellTokenAddress != projectFundTokenAddress,"SELLTOKEN_SAME_FUNDTOKEN");
+        require(projectSellDeposit > 0,"PROJECTSELLDEPOSIT_IS_ZERO");
+        require(projectFundDeposit > 0,"PEOJECTFUNDDEPOSIT_IS_ZERO");
+        require(startTime >= block.timestamp, "STARTTIME_BEFORE_NOW");
+        require(stopTime > startTime, "STOPTIME_BEFORE_STARTTIME");
+        require(lockPeriod > 0, "LOCKPERIOD_IS_ZERO");
 
         uint256 projectId = nextProjectId;
 
@@ -191,7 +186,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         cancelProjectForInvests[projectId].exitStopTime = stopTime;
         nextProjectId = nextProjectId + 1;
 
-        require(IERC20(projectSellTokenAddress).transferFrom(msg.sender, address(this), projectSellDeposit), "12");
+        require(IERC20(projectSellTokenAddress).transferFrom(msg.sender, address(this), projectSellDeposit), "TOKEN_TREANSFER_FAILURE");
         emit CreateProject(projectId, msg.sender, hash);
         return projectId;
     }
@@ -210,23 +205,26 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         projectFundBalance = project.projectActualFundDeposit;
         projectSellBalance = project.projectActualSellDeposit;
 
-        for(uint i = 0; i < project.streamId.length; i++){
-            Types.Stream storage stream = streams[project.streamId[i]];
-            uint256 investSellBalance;
-            uint256 investFundBalance;
-            (investSellBalance,investFundBalance) = investBalanceOf(project.streamId[i]);
-            investSellBalance = investSellBalance.add(stream.investCancelAmount);
-            investFundBalance = investFundBalance.add(stream.investWithdrawalAmount);
-
-            projectFundBalance = projectFundBalance.sub(investSellBalance);
-            projectSellBalance = projectSellBalance.sub(investFundBalance);
-        }
-
-        projectFundBalance = projectFundBalance.sub(project.projectWithdrawalAmount);
-
         if (cancelProjectForInvest.proposalForCancelStatus == 1) {
-            projectFundBalance == 0;
+            projectSellBalance = cancelProjectForInvest.exitProjectSellBalance;
+            projectFundBalance = 0;
+        } else {
+            for(uint i = 0; i < project.streamId.length; i++){
+                Types.Stream storage stream = streams[project.streamId[i]];
+                if(streams[project.streamId[i]].startTime != 0) {
+                    uint256 investSellBalance;
+                    uint256 investFundBalance;
+                    (investSellBalance,investFundBalance) = investBalanceOf(project.streamId[i]);
+                    investFundBalance = investFundBalance.add(stream.investWithdrawalAmount);
+
+                    projectFundBalance = projectFundBalance.sub(investSellBalance);
+                    projectSellBalance = projectSellBalance.sub(investFundBalance);
+                }
+            }
+
+            projectFundBalance = projectFundBalance.sub(project.projectWithdrawalAmount);
         }
+
 
         return (projectSellBalance,projectFundBalance);
     }
@@ -247,166 +245,58 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         returns (bool)
     {
         Types.Project storage project = projects[projectId];
+        Types.CancelProjectForInvest storage cancelProjectForInvest = cancelProjectForInvests[projectId];
 
-        require(block.timestamp >= project.stopTime.add(project.lockPeriod),"13");
-        require(project.refunded == 0,"57");
+        require(block.timestamp >= project.stopTime.add(project.lockPeriod),"FAIL_REACH_UNLOCKPERIOD");
+        require(project.refunded == 0,"ALREADY_REFUND");
 
         uint256 refunds = project.projectSellDeposit.sub(project.projectActualSellDeposit);
-        (uint256 projectSellBalance,) = projectBalanceOf(projectId);
-
-        projectSellBalance = refunds.add(projectSellBalance);
+        uint256 projectSellBalance = refunds.add(cancelProjectForInvest.exitProjectSellBalance);
 
         projects[projectId].refunded = 1;
 
         if (projectSellBalance > 0)
-            require(IERC20(project.projectSellTokenAddress).transfer(project.sender, projectSellBalance), "14");
+            require(IERC20(project.projectSellTokenAddress).transfer(project.sender, projectSellBalance), "TOKEN_TREANSFER_FAILURE");
 
         emit CancelProjectForProject(projectId, projectSellBalance);
         return true;
     }
 
     /**
-     * @notice Project release a withdraw apply for vote by investors.
-     * @dev Throws if the proposal.startTime is not zero.
-     *  Throws if the project id does not point to a valid project stream.
-     *  Throws if the caller is not the sender of the project stream
-     *  Throws if the amount is zero.
+     * @notice Withdraws from the contract to the Project's account.
+     * @dev Throws if the id does not point to a valid stream.
+     *  Throws if caller is not project.
      *  Throws if the amount exceeds the available balance.
-     * @param projectId The id of the project stream for launchProposal.
+     *  Throws if there is a token transfer failure.
+     * @param projectId The id of the project to withdraw tokens from.
      * @param amount The amount of tokens to withdraw.
      * @return bool true=success, otherwise false.
      */
-    function launchProposal (uint256 projectId, uint256 amount)
-        external
-        projectExists(projectId)
-        onlyProject(projectId)
-        returns(bool)
-    {
-        Types.Proposal storage proposal = proposals[projectId];
-
-        require(amount > 0, "16");
-        require(proposal.startTime == 0,"17");
-
-        (,uint256 balance) = projectBalanceOf(projectId);
-        require(balance >= amount, "18");
-
-        proposals[projectId] = Types.Proposal({
-            amount: amount,
-            startTime: block.timestamp,
-            streamId: new uint256[](0)
-        });
-
-        return true;
-    }
-
-    /**
-     * @notice investor vote for proposal of project's withdraw.
-     * @dev Throws if the proposal.startTime is zero.
-     *  Throws if the now not exceeds proposals start time.
-     *  Throws if the now exceeds proposals start time + 600.
-     * @param streamId The id of the investor stream for vote.
-     * @param voteResult The result of vote. pass is 1, notPass is 2.
-     * @return bool true=success, otherwise false.
-     */
-    function voteForInvest (uint256 streamId, uint256 voteResult)
-        external
-        investExists(streamId)
-        onlyInvest(streamId)
-        returns(bool)
-    {
-        Types.Stream storage stream = streams[streamId];
-        Types.Proposal storage proposal = proposals[stream.projectId];
-
-        require(proposal.startTime != 0,"19");
-        require(block.timestamp < proposal.startTime + 600,"20");
-        require(stream.isVote == Types.IsVote.NoVote,"21");
-        require(voteResult == 1 || voteResult == 2,"55");
-
-        if (voteResult == 1) {
-            stream.voteResult = Types.VoteResult.Pass;
-        } else if (voteResult == 2) {
-            stream.voteResult = Types.VoteResult.NotPass;
-        }
-        stream.isVote = Types.IsVote.Voted;
-        proposal.streamId.push(streamId);
-
-        emit VoteForInvest(stream.projectId, streamId, voteResult);
-        return true;
-    }
-
-    /**
-     * @notice project withdraw when now exceeds vote stop time. Withdrawl success when vote pass, Withdrawl failure when vote notPass.
-     * @dev Throws if the proposal.startTime is zero.
-     *  Throws if the Types.Status is Disputed.
-     *  Throws if the project id does not point to a valid project stream.
-     *  Throws if the project.proposalForCancelStatus is one.
-     *  Throws if the now not exceeds proposal.starttime + 600(vote time).
-     * @param projectId The id of the project stream for Withdrawl.
-     * @return bool true=success, otherwise false.
-     * @return pass that how many vote weight.
-     * @return notPass that how many vote weight.
-     */
-    function votingResult(uint256 projectId)
+    function withdrawFromProject(uint256 projectId, uint256 amount)
         external
         whenNotPaused
         nonReentrant
         projectExists(projectId)
         onlyProject(projectId)
-        returns(bool result,uint256 pass,uint256 notPass)
+        returns (bool)
     {
-        Types.Proposal storage proposal = proposals[projectId];
+        require(amount > 0, "AMOUNT_IS_ZERO");
+        (,uint256 balance) = projectBalanceOf(projectId);
+        require(balance >= amount, "BALANCE_SMALLER_AMOUNT");
+
+        Types.Arbitration storage arbitration = arbitrations[projectId];
         Types.Project storage project = projects[projectId];
 
-        require(proposal.startTime != 0,"22");
-        require(arbitrations[projectId].status != Types.Status.Disputed,"23");
-        require(cancelProjectForInvests[projectId].proposalForCancelStatus != 1,"24");
-        require(block.timestamp >= proposal.startTime + 600,"25");
+        require(arbitration.reclaimedAt == 0, "PROJECT_HAS_ARBITRATION");
 
-        uint256 _totalStreams = proposal.streamId.length;
+        projects[projectId].projectWithdrawalAmount = project.projectWithdrawalAmount.add(amount);
 
-        for(uint i = 0; i < _totalStreams; i++) {
-            Types.Stream storage stream = streams[proposal.streamId[i]];
+        require(IERC20(project.projectFundTokenAddress).transfer(project.sender, amount), "TOKEN_TREANSFER_FAILURE");
+        emit WithdrawFromProject(projectId, project.sender, block.timestamp, amount);
 
-            uint256 _delta;
-            if (proposal.startTime < stream.stopTime) {
-                _delta = proposal.startTime - stream.startTime;
-            } else {
-                _delta = stream.stopTime - stream.startTime;
-            }
-
-            uint256 investFundBalance = _delta * stream.ratePerSecondOfInvestFund;
-
-            if(block.timestamp >= project.stopTime) {
-                investFundBalance = stream.investFundDeposit;
-            }
-            investFundBalance = investFundBalance.sub(stream.investWithdrawalAmount);
-
-            if (stream.voteResult == Types.VoteResult.Pass) {
-                pass = pass + investFundBalance;
-                stream.isVote = Types.IsVote.NoVote;
-            } else if (stream.voteResult == Types.VoteResult.NotPass) {
-                notPass = notPass + investFundBalance;
-                stream.isVote = Types.IsVote.NoVote;
-            }
-        }
-
-        if (pass >= notPass) {
-            projects[projectId].projectWithdrawalAmount = project.projectWithdrawalAmount.add(proposal.amount);
-            require(IERC20(project.projectFundTokenAddress).transfer(project.sender, proposal.amount), "26");
-            result = true;
-        } else if (pass < notPass) {
-            result = false;
-        }
-
-        emit WithdrawFromProject(projectId, proposal.amount, pass, notPass, proposal.startTime);
-        delete proposals[projectId];
-        return (result,pass,notPass);
+        return true;
     }
 
-    function deleteProposal(uint256 projectId) external {
-        require(msg.sender == address(this));
-        delete proposals[projectId];
-    }
 
     /*** Investor Functions ***/
 
@@ -439,9 +329,9 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         Types.Project storage project = projects[projectId];
         Types.CancelProjectForInvest storage cancelProjectForInvest = cancelProjectForInvests[projectId];
 
-        require(msg.sender != project.sender,"27");
-        require(investSellDeposit > 0, "28");
-        require(block.timestamp < cancelProjectForInvest.exitStopTime);
+        require(msg.sender != project.sender,"SENDER_SAME_PROJECT");
+        require(investSellDeposit > 0, "INVESTSELLDEPOSIT_IS_ZERO");
+        require(block.timestamp < cancelProjectForInvest.exitStopTime, "NOW_BIGGER_STOPTIME");
 
         uint256 startTime;
         if (block.timestamp <= project.startTime){
@@ -453,7 +343,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         uint256 duration = project.stopTime.sub(startTime);
 
         projects[projectId].projectActualFundDeposit = project.projectActualFundDeposit.add(investSellDeposit);
-        require(project.projectFundDeposit >= projects[projectId].projectActualFundDeposit, "31");
+        require(project.projectFundDeposit >= projects[projectId].projectActualFundDeposit, "EXCEED_PROJECTFUNDDEPOSIT");
 
         uint256 projectActualSellDeposit = projects[projectId].projectActualFundDeposit.mul(project.projectSellDeposit);
         projects[projectId].projectActualSellDeposit = projectActualSellDeposit.div(project.projectFundDeposit);
@@ -475,17 +365,14 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
             startTime: startTime,
             stopTime: project.stopTime,
             sender: msg.sender,
-            investWithdrawalAmount:0,
-            investCancelAmount:0,
-            voteResult:Types.VoteResult.NotPass,
-            isVote: Types.IsVote.NoVote
+            investWithdrawalAmount:0
         });
 
         projects[projectId].streamId.push(streamId);
         cancelProjectForInvests[projectId].sumForExistInvest = cancelProjectForInvests[projectId].sumForExistInvest.add(investSellDeposit);
         nextStreamId = nextStreamId + 1;
 
-        require(IERC20(project.projectFundTokenAddress).transferFrom(msg.sender, address(this), investSellDeposit), "32");
+        require(IERC20(project.projectFundTokenAddress).transferFrom(msg.sender, address(this), investSellDeposit), "TOKEN_TREANSFER_FAILURE");
         emit CreateStream(streamId, msg.sender);
         return streamId;
     }
@@ -502,6 +389,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
     function deltaOf(uint256 streamId) public view returns (uint256 delta) {
         Types.Stream storage stream = streams[streamId];
         Types.CancelProjectForInvest storage cancelProjectForInvest = cancelProjectForInvests[stream.projectId];
+
         if (cancelProjectForInvest.proposalForCancelStatus != 1) {
             if (block.timestamp <= stream.startTime) return 0;
             if (block.timestamp < stream.stopTime) return block.timestamp - stream.startTime;
@@ -539,7 +427,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         }
 
         investSellBalance = stream.investSellDeposit.sub(investSellBalance);
-        investSellBalance = investSellBalance.sub(stream.investCancelAmount);
 
         return (investSellBalance,investFundBalance);
     }
@@ -562,17 +449,17 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         onlyInvest(streamId)
         returns (bool)
     {
-        require(amount > 0, "33");
+        require(amount > 0, "AMOUNT_IS_ZERO");
         (,uint256 balance) = investBalanceOf(streamId);
-        require(balance >= amount, "34");
+        require(balance >= amount, "BALANCE_SMALLER_AMOUNT");
 
         Types.Stream storage stream = streams[streamId];
         Types.Project storage project = projects[stream.projectId];
 
         streams[streamId].investWithdrawalAmount = stream.investWithdrawalAmount.add(amount);
 
-        require(IERC20(project.projectSellTokenAddress).transfer(stream.sender, amount), "35");
-        emit WithdrawFromInvest(streamId, stream.projectId, stream.sender, amount);
+        require(IERC20(project.projectSellTokenAddress).transfer(stream.sender, amount), "TOKEN_TREANSFER_FAILURE");
+        emit WithdrawFromInvest(streamId, stream.projectId, stream.sender, block.timestamp, amount);
 
         return true;
     }
@@ -607,11 +494,8 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
 
     /**
      * @notice investor cancels the stream and transfers the tokens back to invest.
-     * @dev Throws if the exitProjectSellBalance calculation has a math error.
      * Throws if the projectActualFundDeposit calculation has a math error.
      * Throws if the projectActualSellDeposit calculation has a math error.
-     * Throws if the exitProjectFundBalance calculation has a math error.
-     * Throws if the exitProjectSellBalance calculation has a math error.
      *  Throws if there is a projectFund token transfer failure.
      *  Throws if there is a projectSell token transfer failure.
      */
@@ -631,14 +515,12 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
 
         cancelProjectForInvests[stream.projectId].sumForExistInvest = cancelProjectForInvests[stream.projectId].sumForExistInvest.sub(stream.investSellDeposit);
 
-        streams[streamId].stopTime = block.timestamp;
-        streams[streamId].investWithdrawalAmount = stream.investWithdrawalAmount.add(investFundBalance);
-        streams[streamId].investCancelAmount = stream.investCancelAmount.add(investSellBalance);
-
         if (investSellBalance > 0)
-            require(IERC20(project.projectFundTokenAddress).transfer(stream.sender, investSellBalance), "36");
+            require(IERC20(project.projectFundTokenAddress).transfer(stream.sender, investSellBalance), "TOKEN_TREANSFER_FAILURE");
         if (investFundBalance > 0)
-            require(IERC20(project.projectSellTokenAddress).transfer(stream.sender, investFundBalance), "37");
+            require(IERC20(project.projectSellTokenAddress).transfer(stream.sender, investFundBalance), "TOKEN_TREANSFER_FAILURE");
+
+        delete streams[streamId];
 
         emit CancelStream(stream.projectId, streamId, stream.sender, investSellBalance, investFundBalance, block.timestamp);
     }
@@ -658,27 +540,19 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         Types.Project storage project = projects[stream.projectId];
         Types.CancelProjectForInvest storage cancelProjectForInvest = cancelProjectForInvests[stream.projectId];
 
-        (,uint256 projectFundBalance) = projectBalanceOf(stream.projectId);
-
-        uint256 amount = projectFundBalance.mul(stream.investSellDeposit);
+        uint256 amount = cancelProjectForInvest.exitProjectFundBalance.mul(stream.investSellDeposit);
         amount = amount.div(cancelProjectForInvest.sumForExistInvest);
 
         (uint256 investSellBalance,uint256 investFundBalance) = investBalanceOf(streamId);
 
-        projects[stream.projectId].projectActualFundDeposit = project.projectActualFundDeposit.sub(investSellBalance);
-
-        uint256 projectActualSellDeposit = projects[stream.projectId].projectActualFundDeposit.mul(project.projectSellDeposit);
-        projects[stream.projectId].projectActualSellDeposit = projectActualSellDeposit.div(project.projectFundDeposit);
-
-        streams[streamId].investWithdrawalAmount = stream.investWithdrawalAmount.add(investFundBalance);
-        streams[streamId].investCancelAmount = stream.investCancelAmount.add(investSellBalance);
-
         investSellBalance = amount.add(investSellBalance);
 
         if (investSellBalance > 0)
-            require(IERC20(project.projectFundTokenAddress).transfer(stream.sender, investSellBalance), "38");
+            require(IERC20(project.projectFundTokenAddress).transfer(stream.sender, investSellBalance), "TOKEN_TREANSFER_FAILURE");
         if (investFundBalance > 0)
-            require(IERC20(project.projectSellTokenAddress).transfer(stream.sender, investFundBalance), "39");
+            require(IERC20(project.projectSellTokenAddress).transfer(stream.sender, investFundBalance), "TOKEN_TREANSFER_FAILURE");
+
+        delete streams[streamId];
 
         emit CancelProject(stream.projectId, streamId, stream.sender, investSellBalance, investFundBalance,amount,block.timestamp);
     }
@@ -740,11 +614,8 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
             uint256 startTime,
             uint256 stopTime,
             uint256 investWithdrawalAmount,
-            uint256 investCancelAmount,
             uint256 ratePerSecondOfInvestSell,
-            uint256 ratePerSecondOfInvestFund,
-            Types.VoteResult voteResult,
-            Types.IsVote isVote
+            uint256 ratePerSecondOfInvestFund
         )
     {
         projectId = streams[streamId].projectId;
@@ -754,11 +625,8 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         startTime = streams[streamId].startTime;
         stopTime = streams[streamId].stopTime;
         investWithdrawalAmount = streams[streamId].investWithdrawalAmount;
-        investCancelAmount = streams[streamId].investCancelAmount;
         ratePerSecondOfInvestSell = streams[streamId].ratePerSecondOfInvestSell;
         ratePerSecondOfInvestFund = streams[streamId].ratePerSecondOfInvestFund;
-        voteResult = streams[streamId].voteResult;
-        isVote = streams[streamId].isVote;
     }
 
     /**
@@ -767,46 +635,23 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      * @param projectId The id of the project stream for get CancelProjectForInvest info.
      * @return The CancelProjectForInvest object.
      */
-    function getCancelProjectForInvestAndProposal(uint256 projectId)
+    function getCancelProjectForInvest(uint256 projectId)
         external
         view
         projectExists(projectId)
         returns (
+            uint256 exitProjectSellBalance,
+            uint256 exitProjectFundBalance,
             uint256 exitStopTime,
             uint256 sumForExistInvest,
-            uint256 proposalForCancelStatus,
-            uint256 amount,
-            uint256 startTime,
-            uint256[] memory streamId
+            uint256 proposalForCancelStatus
         )
     {
+        exitProjectSellBalance = cancelProjectForInvests[projectId].exitProjectSellBalance;
+        exitProjectFundBalance = cancelProjectForInvests[projectId].exitProjectFundBalance;
         exitStopTime = cancelProjectForInvests[projectId].exitStopTime;
         sumForExistInvest = cancelProjectForInvests[projectId].sumForExistInvest;
         proposalForCancelStatus = cancelProjectForInvests[projectId].proposalForCancelStatus;
-        amount = proposals[projectId].amount;
-        startTime = proposals[projectId].startTime;
-        streamId = projects[projectId].streamId;
-    }
-
-    /**
-     * @notice Returns the project with all its properties.
-     * @dev Throws if the project id does not point to a valid project stream.
-     * @param projectId The id of the project stream for get proposal info.
-     * @return The Proposal object.
-     */
-    function getProposal(uint256 projectId)
-        external
-        view
-        projectExists(projectId)
-        returns (
-            uint256 amount,
-            uint256 startTime,
-            uint256[] memory streamId
-        )
-    {
-        amount = proposals[projectId].amount;
-        startTime = proposals[projectId].startTime;
-        streamId = proposals[projectId].streamId;
     }
 
     function getArbitration(uint256 projectId)
@@ -838,13 +683,15 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         string memory _metaEvidence
     ) public projectExists(projectId) payable {
         /* verify msg.value is same as arbitrationCost*/
-        require(msg.value == IArbitrator(arbitratorAddress).arbitrationCost(""),"40");
+        require(msg.value == IArbitrator(arbitratorAddress).arbitrationCost(""),"MSGVALUE_NOT_SAME_ARBITRATIONCOST");
 
         Types.Project storage project = projects[projectId];
+        Types.CancelProjectForInvest storage cancelProjectForInvest = cancelProjectForInvests[projectId];
 
-        require(arbitrations[projectId].reclaimedAt == 0,"41");
-        require(block.timestamp >= project.startTime,"42");
-        require(block.timestamp < cancelProjectForInvests[projectId].exitStopTime,"43");
+        require(arbitrations[projectId].reclaimedAt == 0,"ALREADY_HAVE_ARBITRATION");
+        require(block.timestamp >= project.startTime,"PROJECT_NOT_START");
+        require(block.timestamp < cancelProjectForInvest.exitStopTime,"PROJECT_IS_FINISHED");
+        require(block.timestamp >= cancelProjectForInvest.preReclaimedAt + 86400, "NOT_ARRIVE_24HOURS");
 
         uint256 _metaEvidenceID = nextMetaEvidenceID;
 
@@ -861,9 +708,10 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         });
 
         nextMetaEvidenceID = nextMetaEvidenceID + 1;
+        cancelProjectForInvests[projectId].preReclaimedAt = block.timestamp;
 
         emit MetaEvidence(_metaEvidenceID, _metaEvidence);
-        emit Arbitration(projectId, _metaEvidence, project.sender, msg.sender,msg.value, block.timestamp);
+        emit Arbitration(projectId, _metaEvidenceID, _metaEvidence, project.sender, msg.sender,msg.value, block.timestamp);
     }
 
     /**
@@ -877,16 +725,21 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
     function reclaimFunds(uint256 projectId)  external returns(bool result){
         Types.Arbitration storage arbitration = arbitrations[projectId];
 
-        require(arbitration.status == Types.Status.Reclaimed,"44");
-        require(block.timestamp - arbitration.reclaimedAt > 86400,"46");
+        require(arbitration.status == Types.Status.Reclaimed,"STATUS_NOT_RECLAIMED");
+        require(block.timestamp - arbitration.reclaimedAt > 86400,"NOT_ARRIVAL_RECLAIMEDPERIOD");
 
         if (block.timestamp <= cancelProjectForInvests[projectId].exitStopTime) {
             cancelProjectForInvests[projectId].exitStopTime = block.timestamp;
         }
         cancelProjectForInvests[projectId].proposalForCancelStatus = 1;
 
+        (uint256 exitProjectSellBalance, uint256 exitProjectFundBalance) = projectBalanceOf(projectId);
+        cancelProjectForInvests[projectId].exitProjectSellBalance = exitProjectSellBalance;
+        cancelProjectForInvests[projectId].exitProjectFundBalance = exitProjectFundBalance;
+
+        arbitrations[projectId].status = Types.Status.Resolved;
+
         result = arbitration.invest.send(arbitration.feeDeposit);
-        delete arbitrations[projectId];
 
         return result;
     }
@@ -902,9 +755,9 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         Types.Arbitration storage arbitration = arbitrations[projectId];
 
         /* verify msg.value is same as arbitrationCost*/
-        require(msg.value == IArbitrator(arbitratorAddress).arbitrationCost(""),"47");
-        require(arbitration.status == Types.Status.Reclaimed, "48");
-        require(block.timestamp - arbitration.reclaimedAt <= 86400,"49");
+        require(msg.value == IArbitrator(arbitratorAddress).arbitrationCost(""),"MSGVALUE_NOT_SAME_ARBITRATIONCOST");
+        require(arbitration.status == Types.Status.Reclaimed, "STATUS_NOT_SAME_RECLAIMED");
+        require(block.timestamp - arbitration.reclaimedAt <= 86400,"ARRIVAL_RECLAIMEDPERIOD");
 
         arbitrations[projectId].projectFeeDeposit = msg.value;
         arbitrations[projectId].disputeID = IArbitrator(arbitratorAddress).createDispute.value(msg.value)(2, "");
@@ -933,9 +786,9 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         Types.Arbitration storage arbitration = arbitrations[projectId];
         Types.CancelProjectForInvest storage cancelProjectForInvest = cancelProjectForInvests[projectId];
 
-        require(msg.sender == arbitratorAddress, "50");
-        require(arbitration.status == Types.Status.Disputed, "51");
-        require(_ruling <= 2, "52");
+        require(msg.sender == arbitratorAddress, "SENDER_NOT_SAME_ARBITRATOR");
+        require(arbitration.status == Types.Status.Disputed, "STATUS_NOT_SAME_DISPUTED");
+        require(_ruling <= 2, "RULING_BIGGER_2");
 
         bool result;
         if (_ruling == 1) {
@@ -944,6 +797,11 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
             if (block.timestamp <= cancelProjectForInvest.exitStopTime) {
                 cancelProjectForInvests[projectId].exitStopTime = block.timestamp;
             }
+
+            (uint256 exitProjectSellBalance, uint256 exitProjectFundBalance) = projectBalanceOf(projectId);
+            cancelProjectForInvests[projectId].exitProjectSellBalance = exitProjectSellBalance;
+            cancelProjectForInvests[projectId].exitProjectFundBalance = exitProjectFundBalance;
+
             result = arbitration.invest.send(arbitration.feeDeposit);
         } else if (_ruling == 2) {
             cancelProjectForInvests[projectId].proposalForCancelStatus = 2;
@@ -986,10 +844,10 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         Types.Arbitration storage arbitration = arbitrations[projectId];
 
         /* verify msg.value is same as appealCost*/
-        require(msg.value == IArbitrator(arbitratorAddress).appealCost(arbitration.disputeID, ""),"53");
+        require(msg.value == IArbitrator(arbitratorAddress).appealCost(arbitration.disputeID, ""),"MSGVALUE_NOT_SAME_APPEALCOST");
 
         IArbitrator.DisputeStatus status = IArbitrator(arbitratorAddress).disputeStatus(arbitration.disputeID);
-        require(status == IArbitrator.DisputeStatus.Appealable,"54");
+        require(status == IArbitrator.DisputeStatus.Appealable,"STATUS_NOT_SAME_APPEALABLE");
 
         IArbitrator(arbitratorAddress).appeal.value(msg.value)(arbitration.disputeID, "");
     }
