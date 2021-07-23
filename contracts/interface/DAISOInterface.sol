@@ -1,4 +1,7 @@
-pragma solidity >= 0.5;
+// SPDX-License-Identifier: MIT
+
+
+pragma solidity >= 0.8;
 
 
 interface DAISOInterface {

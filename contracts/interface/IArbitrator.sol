@@ -1,13 +1,7 @@
-/**
- * @authors: [@ferittuncer, @hbarcelos]
- * @reviewers: [@remedcu]
- * @auditors: []
- * @bounties: []
- * @deployments: []
- * SPDX-License-Identifier: MIT
- */
+// SPDX-License-Identifier: MIT
 
-pragma solidity >=0.5;
+
+pragma solidity >=0.7;
 
 import "./IArbitrable.sol";
 

@@ -1,10 +1,12 @@
-pragma solidity 0.5.16;
+// SPDX-License-Identifier: MIT
 
-import "../node_modules/@openzeppelin/contracts-ethereum-package/contracts/token/ERC20/IERC20.sol";
-import "../node_modules/@openzeppelin/contracts-ethereum-package/contracts/utils/ReentrancyGuard.sol";
 
-import "./tools-contracts/OwnableWithoutRenounce.sol";
-import "./tools-contracts/PausableWithoutRenounce.sol";
+pragma solidity 0.8.4;
+
+import "./openzeppelin/token/ERC20/IERC20Upgradeable.sol";
+import "./openzeppelin/security/ReentrancyGuardUpgradeable.sol";
+
+import "./tools-contracts/OwnableUpgradeable.sol";
 import "./tools-contracts/SafeMath.sol";
 
 import './Types.sol';
@@ -14,12 +16,8 @@ import "./interface/IArbitrator.sol";
 import "./interface/IArbitrable.sol";
 import "./interface/erc-1497/IEvidence.sol";
 
-/**
- * @title DAISO: StreamPay + DAICO + Kleros
- * @author Sundial
- */
 
-contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithoutRenounce, ReentrancyGuard, DAISOInterface{
+contract DAISO is IArbitrable, IEvidence, OwnableUpgradeable, ReentrancyGuardUpgradeable, DAISOInterface{
     using SafeMath for uint256;
 
     /*** Storage Properties ***/
@@ -114,21 +112,24 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
 
     /*** Contract Logic Starts Here */
 
-    constructor() public {
-        OwnableWithoutRenounce.initialize(msg.sender);
-        PausableWithoutRenounce.initialize(msg.sender);
+    constructor() {
+        OwnableUpgradeable.__Ownable_init();
         arbitratorAddress = address(0x60B2AbfDfaD9c0873242f59f2A8c32A3Cc682f80);
         nextStreamId = 1;
         nextProjectId = 1;
         nextEvidenceGroup = 1;
         nextMetaEvidenceID = 1;
     }
+    
+    /*** Update Arbitration Address */
+    function updateArbitratorAddress(address arbitrator) external onlyOwner {
+        arbitratorAddress = arbitrator;
+    }
 
     /*** Project Functions ***/
 
     /**
      * @notice Creates a new project stream for sell xDAI to fund DAI.
-     * @dev Throws if paused.
      *  Throws if the projectSellTokenAddress is same the projectFundTokenAddress.
      *  Throws if the projectSellDeposit is 0.
      *  Throws if the projectFundDeposit is 0.
@@ -154,7 +155,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
     function createProject(address projectSellTokenAddress, uint256 projectSellDeposit, address projectFundTokenAddress,
         uint256 projectFundDeposit, uint256 startTime, uint256 stopTime, uint256 lockPeriod, string calldata hash)
         external
-        whenNotPaused
         returns (uint256)
     {
         require(projectSellTokenAddress != projectFundTokenAddress,"SELLTOKEN_SAME_FUNDTOKEN");
@@ -172,7 +172,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
             projectActualSellDeposit: 0,
             projectActualFundDeposit: 0,
             projectWithdrawalAmount:0,
-            sender: msg.sender,
+            sender: payable(msg.sender),
             startTime: startTime,
             stopTime: stopTime,
             projectSellTokenAddress: projectSellTokenAddress,
@@ -186,7 +186,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         cancelProjectForInvests[projectId].exitStopTime = stopTime;
         nextProjectId = nextProjectId + 1;
 
-        require(IERC20(projectSellTokenAddress).transferFrom(msg.sender, address(this), projectSellDeposit), "TOKEN_TREANSFER_FAILURE");
+        require(IERC20Upgradeable(projectSellTokenAddress).transferFrom(msg.sender, address(this), projectSellDeposit), "TOKEN_TREANSFER_FAILURE");
         emit CreateProject(projectId, msg.sender, hash);
         return projectId;
     }
@@ -195,10 +195,10 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      * @notice Returns the sellToken balance and fundToken balance for project.
      * @dev Throws if the project id does not point to a valid project stream.
      * @param projectId The id of the project stream for which to query the balance.
-     * @return The stream balance for project SellToken.
-     * @return The stream balance for project FundToken.
+     * @return projectSellBalance is stream balance for project SellToken.
+     * @return projectFundBalance is stream balance for project FundToken.
      */
-    function projectBalanceOf(uint256 projectId) public view projectExists(projectId) returns (uint256 projectSellBalance, uint256 projectFundBalance) {
+    function projectBalanceOf(uint256 projectId) external view projectExists(projectId) returns (uint256 projectSellBalance, uint256 projectFundBalance) {
         Types.Project storage project = projects[projectId];
         Types.CancelProjectForInvest storage cancelProjectForInvest = cancelProjectForInvests[projectId];
 
@@ -214,7 +214,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
                 if(streams[project.streamId[i]].startTime != 0) {
                     uint256 investSellBalance;
                     uint256 investFundBalance;
-                    (investSellBalance,investFundBalance) = investBalanceOf(project.streamId[i]);
+                    (investSellBalance,investFundBalance) = this.investBalanceOf(project.streamId[i]);
                     investFundBalance = investFundBalance.add(stream.investWithdrawalAmount);
 
                     projectFundBalance = projectFundBalance.sub(investSellBalance);
@@ -256,7 +256,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         projects[projectId].refunded = 1;
 
         if (projectSellBalance > 0)
-            require(IERC20(project.projectSellTokenAddress).transfer(project.sender, projectSellBalance), "TOKEN_TREANSFER_FAILURE");
+            require(IERC20Upgradeable(project.projectSellTokenAddress).transfer(project.sender, projectSellBalance), "TOKEN_TREANSFER_FAILURE");
 
         emit CancelProjectForProject(projectId, projectSellBalance);
         return true;
@@ -274,14 +274,13 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      */
     function withdrawFromProject(uint256 projectId, uint256 amount)
         external
-        whenNotPaused
         nonReentrant
         projectExists(projectId)
         onlyProject(projectId)
         returns (bool)
     {
         require(amount > 0, "AMOUNT_IS_ZERO");
-        (,uint256 balance) = projectBalanceOf(projectId);
+        (,uint256 balance) = this.projectBalanceOf(projectId);
         require(balance >= amount, "BALANCE_SMALLER_AMOUNT");
 
         Types.Arbitration storage arbitration = arbitrations[projectId];
@@ -291,7 +290,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
 
         projects[projectId].projectWithdrawalAmount = project.projectWithdrawalAmount.add(amount);
 
-        require(IERC20(project.projectFundTokenAddress).transfer(project.sender, amount), "TOKEN_TREANSFER_FAILURE");
+        require(IERC20Upgradeable(project.projectFundTokenAddress).transfer(project.sender, amount), "TOKEN_TREANSFER_FAILURE");
         emit WithdrawFromProject(projectId, project.sender, block.timestamp, amount);
 
         return true;
@@ -302,7 +301,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
 
     /**
      * @notice Creates a new stream for invest project by investors;.
-     * @dev Throws if paused.
      *  Throws if the caller is project.
      *  Throws if the investSellDeposit is 0.
      *  Throws if the now is before project start time.
@@ -323,7 +321,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      */
     function createStream(uint256 projectId, uint256 investSellDeposit)
         external
-        whenNotPaused
         returns (uint256)
     {
         Types.Project storage project = projects[projectId];
@@ -372,7 +369,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         cancelProjectForInvests[projectId].sumForExistInvest = cancelProjectForInvests[projectId].sumForExistInvest.add(investSellDeposit);
         nextStreamId = nextStreamId + 1;
 
-        require(IERC20(project.projectFundTokenAddress).transferFrom(msg.sender, address(this), investSellDeposit), "TOKEN_TREANSFER_FAILURE");
+        require(IERC20Upgradeable(project.projectFundTokenAddress).transferFrom(msg.sender, address(this), investSellDeposit), "TOKEN_TREANSFER_FAILURE");
         emit CreateStream(streamId, msg.sender);
         return streamId;
     }
@@ -384,9 +381,9 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      *  `startTime`, it returns 0.
      * @dev Throws if the id does not point to a valid stream.
      * @param streamId The id of the stream for which to query the delta.
-     * @return The time delta in seconds.
+     * @return delta is time delta in seconds.
      */
-    function deltaOf(uint256 streamId) public view returns (uint256 delta) {
+    function deltaOf(uint256 streamId) external view returns (uint256 delta) {
         Types.Stream storage stream = streams[streamId];
         Types.CancelProjectForInvest storage cancelProjectForInvest = cancelProjectForInvests[stream.projectId];
 
@@ -405,14 +402,14 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      * @notice Returns the sellToken balance and fundToken balance for invest.
      * @dev Throws if the id does not point to a valid stream.
      * @param streamId The id of the invest stream for balance.
-     * @return The stream balance for invest SellToken.
-     * @return The stream balance for invest FundToken.
+     * @return investSellBalance is stream balance for invest SellToken.
+     * @return investFundBalance is  stream balance for invest FundToken.
     */
-    function investBalanceOf(uint256 streamId) public view investExists(streamId) returns (uint256 investSellBalance, uint256 investFundBalance) {
+    function investBalanceOf(uint256 streamId) external view investExists(streamId) returns (uint256 investSellBalance, uint256 investFundBalance) {
         Types.Stream storage stream = streams[streamId];
         Types.Project storage project = projects[stream.projectId];
 
-        uint256 delta = deltaOf(streamId);
+        uint256 delta = this.deltaOf(streamId);
         investFundBalance = delta * stream.ratePerSecondOfInvestFund;
 
         if(block.timestamp >= project.stopTime) {
@@ -443,14 +440,13 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      */
     function withdrawFromInvest(uint256 streamId, uint256 amount)
         external
-        whenNotPaused
         nonReentrant
         investExists(streamId)
         onlyInvest(streamId)
         returns (bool)
     {
         require(amount > 0, "AMOUNT_IS_ZERO");
-        (,uint256 balance) = investBalanceOf(streamId);
+        (,uint256 balance) = this.investBalanceOf(streamId);
         require(balance >= amount, "BALANCE_SMALLER_AMOUNT");
 
         Types.Stream storage stream = streams[streamId];
@@ -458,7 +454,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
 
         streams[streamId].investWithdrawalAmount = stream.investWithdrawalAmount.add(amount);
 
-        require(IERC20(project.projectSellTokenAddress).transfer(stream.sender, amount), "TOKEN_TREANSFER_FAILURE");
+        require(IERC20Upgradeable(project.projectSellTokenAddress).transfer(stream.sender, amount), "TOKEN_TREANSFER_FAILURE");
         emit WithdrawFromInvest(streamId, stream.projectId, stream.sender, block.timestamp, amount);
 
         return true;
@@ -506,7 +502,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         uint256 investSellBalance;
         uint256 investFundBalance;
 
-        (investSellBalance,investFundBalance) = investBalanceOf(streamId);
+        (investSellBalance,investFundBalance) = this.investBalanceOf(streamId);
 
         projects[stream.projectId].projectActualFundDeposit = project.projectActualFundDeposit.sub(investSellBalance);
 
@@ -516,9 +512,9 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         cancelProjectForInvests[stream.projectId].sumForExistInvest = cancelProjectForInvests[stream.projectId].sumForExistInvest.sub(stream.investSellDeposit);
 
         if (investSellBalance > 0)
-            require(IERC20(project.projectFundTokenAddress).transfer(stream.sender, investSellBalance), "TOKEN_TREANSFER_FAILURE");
+            require(IERC20Upgradeable(project.projectFundTokenAddress).transfer(stream.sender, investSellBalance), "TOKEN_TREANSFER_FAILURE");
         if (investFundBalance > 0)
-            require(IERC20(project.projectSellTokenAddress).transfer(stream.sender, investFundBalance), "TOKEN_TREANSFER_FAILURE");
+            require(IERC20Upgradeable(project.projectSellTokenAddress).transfer(stream.sender, investFundBalance), "TOKEN_TREANSFER_FAILURE");
 
         delete streams[streamId];
 
@@ -543,14 +539,14 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         uint256 amount = cancelProjectForInvest.exitProjectFundBalance.mul(stream.investSellDeposit);
         amount = amount.div(cancelProjectForInvest.sumForExistInvest);
 
-        (uint256 investSellBalance,uint256 investFundBalance) = investBalanceOf(streamId);
+        (uint256 investSellBalance,uint256 investFundBalance) = this.investBalanceOf(streamId);
 
         investSellBalance = amount.add(investSellBalance);
 
         if (investSellBalance > 0)
-            require(IERC20(project.projectFundTokenAddress).transfer(stream.sender, investSellBalance), "TOKEN_TREANSFER_FAILURE");
+            require(IERC20Upgradeable(project.projectFundTokenAddress).transfer(stream.sender, investSellBalance), "TOKEN_TREANSFER_FAILURE");
         if (investFundBalance > 0)
-            require(IERC20(project.projectSellTokenAddress).transfer(stream.sender, investFundBalance), "TOKEN_TREANSFER_FAILURE");
+            require(IERC20Upgradeable(project.projectSellTokenAddress).transfer(stream.sender, investFundBalance), "TOKEN_TREANSFER_FAILURE");
 
         delete streams[streamId];
 
@@ -561,7 +557,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      * @notice Returns the project with all its properties.
      * @dev Throws if the project id does not point to a valid project stream.
      * @param projectId The id of the project stream for getProject info.
-     * @return The project object.
      */
     function getProject(uint256 projectId)
         external
@@ -600,7 +595,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      * @notice Returns the stream with all its properties.
      * @dev Throws if the stream id does not point to a valid invest stream.
      * @param streamId The id of the invest stream for get stream info.
-     * @return The stream object.
      */
     function getStream(uint256 streamId)
         external
@@ -633,7 +627,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      * @notice Returns the project with all its properties.
      * @dev Throws if the project id does not point to a valid project stream.
      * @param projectId The id of the project stream for get CancelProjectForInvest info.
-     * @return The CancelProjectForInvest object.
      */
     function getCancelProjectForInvest(uint256 projectId)
         external
@@ -681,7 +674,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
     function createArbitrationForInvestor(
         uint256 projectId,
         string memory _metaEvidence
-    ) public projectExists(projectId) payable {
+    ) external projectExists(projectId) payable {
         /* verify msg.value is same as arbitrationCost*/
         require(msg.value == IArbitrator(arbitratorAddress).arbitrationCost(""),"MSGVALUE_NOT_SAME_ARBITRATIONCOST");
 
@@ -696,7 +689,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         uint256 _metaEvidenceID = nextMetaEvidenceID;
 
         arbitrations[projectId] = Types.Arbitration({
-            invest: msg.sender,
+            invest: payable(msg.sender),
             project: project.sender,
             status: Types.Status.Reclaimed,
             disputeID: 0,
@@ -722,7 +715,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      *  Throws if the now not exceeds arbitration.reclaimedAt + 86400(reclaimed time).
      * @param projectId The id of the project arbitration for which to query the delta.
      */
-    function reclaimFunds(uint256 projectId)  external returns(bool result){
+    function reclaimFunds(uint256 projectId) external nonReentrant returns(bool result){
         Types.Arbitration storage arbitration = arbitrations[projectId];
 
         require(arbitration.status == Types.Status.Reclaimed,"STATUS_NOT_RECLAIMED");
@@ -733,7 +726,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         }
         cancelProjectForInvests[projectId].proposalForCancelStatus = 1;
 
-        (uint256 exitProjectSellBalance, uint256 exitProjectFundBalance) = projectBalanceOf(projectId);
+        (uint256 exitProjectSellBalance, uint256 exitProjectFundBalance) = this.projectBalanceOf(projectId);
         cancelProjectForInvests[projectId].exitProjectSellBalance = exitProjectSellBalance;
         cancelProjectForInvests[projectId].exitProjectFundBalance = exitProjectFundBalance;
 
@@ -751,7 +744,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      *  Throws if the now exceeds arbitration.reclaimedAt + 86400(reclaimed time).
      * @param projectId The id of the project arbitration for which to query the delta.
      */
-    function createDisputeForProject(uint256 projectId) external payable returns(bool) {
+    function createDisputeForProject(uint256 projectId) external nonReentrant payable returns(bool) {
         Types.Arbitration storage arbitration = arbitrations[projectId];
 
         /* verify msg.value is same as arbitrationCost*/
@@ -760,9 +753,10 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         require(block.timestamp - arbitration.reclaimedAt <= 86400,"ARRIVAL_RECLAIMEDPERIOD");
 
         arbitrations[projectId].projectFeeDeposit = msg.value;
-        arbitrations[projectId].disputeID = IArbitrator(arbitratorAddress).createDispute.value(msg.value)(2, "");
         arbitrations[projectId].status = Types.Status.Disputed;
         arbitrations[projectId].evidenceGroup = nextEvidenceGroup;
+        
+        arbitrations[projectId].disputeID = IArbitrator(arbitratorAddress).createDispute{value:msg.value}(2, "");
 
         nextEvidenceGroup = nextEvidenceGroup + 1;
 
@@ -780,7 +774,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      * @param _disputeID The id of the dispute object for which to query the delta.
      * @param _ruling The result of Irabitrator.
      */
-    function rule(uint256 _disputeID, uint256 _ruling) external {
+    function rule(uint256 _disputeID, uint256 _ruling) override external nonReentrant {
         uint256 projectId = disputeIDtoArbitrationID[_disputeID];
 
         Types.Arbitration storage arbitration = arbitrations[projectId];
@@ -798,7 +792,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
                 cancelProjectForInvests[projectId].exitStopTime = block.timestamp;
             }
 
-            (uint256 exitProjectSellBalance, uint256 exitProjectFundBalance) = projectBalanceOf(projectId);
+            (uint256 exitProjectSellBalance, uint256 exitProjectFundBalance) = this.projectBalanceOf(projectId);
             cancelProjectForInvests[projectId].exitProjectSellBalance = exitProjectSellBalance;
             cancelProjectForInvests[projectId].exitProjectFundBalance = exitProjectFundBalance;
 
@@ -840,7 +834,7 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
      * @dev Throws if the status is not Appealable.
      * @param projectId The id of the project arbitration for which to query the delta.
      */
-    function appeal(uint256 projectId) external payable {
+    function appeal(uint256 projectId) external nonReentrant payable {
         Types.Arbitration storage arbitration = arbitrations[projectId];
 
         /* verify msg.value is same as appealCost*/
@@ -849,6 +843,6 @@ contract DAISO is IArbitrable, IEvidence, OwnableWithoutRenounce, PausableWithou
         IArbitrator.DisputeStatus status = IArbitrator(arbitratorAddress).disputeStatus(arbitration.disputeID);
         require(status == IArbitrator.DisputeStatus.Appealable,"STATUS_NOT_SAME_APPEALABLE");
 
-        IArbitrator(arbitratorAddress).appeal.value(msg.value)(arbitration.disputeID, "");
+        IArbitrator(arbitratorAddress).appeal{value:msg.value}(arbitration.disputeID, "");
     }
 }
