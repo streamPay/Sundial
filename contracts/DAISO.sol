@@ -46,6 +46,11 @@ contract DAISO is IArbitrable, IEvidence, OwnableUpgradeable, ReentrancyGuardUpg
      * @notice Address of IArbitrator.
      */
     address arbitratorAddress;
+    
+    /**
+     * @notice Calculation project balance.
+     */
+    mapping(uint256 => Types.CalProjectBalance) public calProjectBalances;
 
     /**
      * @notice The invest stream objects identifiable by their unsigned integer ids.
@@ -201,31 +206,39 @@ contract DAISO is IArbitrable, IEvidence, OwnableUpgradeable, ReentrancyGuardUpg
     function projectBalanceOf(uint256 projectId) external view projectExists(projectId) returns (uint256 projectSellBalance, uint256 projectFundBalance) {
         Types.Project storage project = projects[projectId];
         Types.CancelProjectForInvest storage cancelProjectForInvest = cancelProjectForInvests[projectId];
-
-        projectFundBalance = project.projectActualFundDeposit;
-        projectSellBalance = project.projectActualSellDeposit;
+        Types.CalProjectBalance storage calProjectBalance = calProjectBalances[projectId];
 
         if (cancelProjectForInvest.proposalForCancelStatus == 1) {
             projectSellBalance = cancelProjectForInvest.exitProjectSellBalance;
             projectFundBalance = 0;
         } else {
-            for(uint i = 0; i < project.streamId.length; i++){
-                Types.Stream storage stream = streams[project.streamId[i]];
-                if(streams[project.streamId[i]].startTime != 0) {
-                    uint256 investSellBalance;
-                    uint256 investFundBalance;
-                    (investSellBalance,investFundBalance) = this.investBalanceOf(project.streamId[i]);
-                    investFundBalance = investFundBalance.add(stream.investWithdrawalAmount);
+            if (block.timestamp <= project.startTime){
+                projectSellBalance = project.projectActualSellDeposit;
+                projectFundBalance = 0;
+            } else if (block.timestamp < project.stopTime){
+               if (project.projectActualSellDeposit > 0) {
+                    uint256 delta = block.timestamp.sub(project.startTime);
+                    uint256 investFundBalance = delta.mul(calProjectBalance.sumOfRatePerSecondOfInvestFund);
+                    investFundBalance = investFundBalance.sub(calProjectBalance.sumOfCalBalance);
+                    investFundBalance = investFundBalance.add(calProjectBalance.sumOfCancelInvestor);
 
-                    projectFundBalance = projectFundBalance.sub(investSellBalance);
-                    projectSellBalance = projectSellBalance.sub(investFundBalance);
+                    projectSellBalance = project.projectActualSellDeposit.sub(investFundBalance);
+
+                    projectFundBalance = project.projectActualFundDeposit.mul(projectSellBalance);
+                    projectFundBalance = projectFundBalance.div(project.projectActualSellDeposit);
+                    projectFundBalance = project.projectActualFundDeposit.sub(projectFundBalance);
+                    projectFundBalance = projectFundBalance.sub(project.projectWithdrawalAmount);
+                } else {
+                    projectSellBalance = 0;
+                    projectFundBalance = 0;
                 }
+            } else {
+                projectSellBalance = 0;
+                projectFundBalance = project.projectActualFundDeposit;
+                projectFundBalance = projectFundBalance.sub(project.projectWithdrawalAmount);
             }
 
-            projectFundBalance = projectFundBalance.sub(project.projectWithdrawalAmount);
         }
-
-
         return (projectSellBalance,projectFundBalance);
     }
 
@@ -298,6 +311,15 @@ contract DAISO is IArbitrable, IEvidence, OwnableUpgradeable, ReentrancyGuardUpg
 
 
     /*** Investor Functions ***/
+    
+    struct CreateStreamLocalVars {
+        uint256 time;
+        uint256 calBalance;
+        uint256 startTime;
+        uint256 duration;
+        uint256 ratePerSecondOfInvestSell;
+        uint256 ratePerSecondOfInvestFund;
+    }
 
     /**
      * @notice Creates a new stream for invest project by investors;.
@@ -325,19 +347,11 @@ contract DAISO is IArbitrable, IEvidence, OwnableUpgradeable, ReentrancyGuardUpg
     {
         Types.Project storage project = projects[projectId];
         Types.CancelProjectForInvest storage cancelProjectForInvest = cancelProjectForInvests[projectId];
+        CreateStreamLocalVars memory vars;
 
         require(msg.sender != project.sender,"SENDER_SAME_PROJECT");
         require(investSellDeposit > 0, "INVESTSELLDEPOSIT_IS_ZERO");
         require(block.timestamp < cancelProjectForInvest.exitStopTime, "NOW_BIGGER_STOPTIME");
-
-        uint256 startTime;
-        if (block.timestamp <= project.startTime){
-            startTime = project.startTime;
-        } else {
-            startTime = block.timestamp;
-        }
-
-        uint256 duration = project.stopTime.sub(startTime);
 
         projects[projectId].projectActualFundDeposit = project.projectActualFundDeposit.add(investSellDeposit);
         require(project.projectFundDeposit >= projects[projectId].projectActualFundDeposit, "EXCEED_PROJECTFUNDDEPOSIT");
@@ -348,8 +362,24 @@ contract DAISO is IArbitrable, IEvidence, OwnableUpgradeable, ReentrancyGuardUpg
         uint256 investFundDeposit = investSellDeposit.mul(project.projectSellDeposit);
         investFundDeposit = investFundDeposit.div(project.projectFundDeposit);
 
-        uint256 ratePerSecondOfInvestSell = investSellDeposit.div(duration);
-        uint256 ratePerSecondOfInvestFund = investFundDeposit.div(duration);
+        if (block.timestamp <= project.startTime){
+            vars.startTime = project.startTime;
+            vars.duration = project.stopTime.sub(vars.startTime);
+            vars.ratePerSecondOfInvestSell = investSellDeposit.div(vars.duration);
+            vars.ratePerSecondOfInvestFund = investFundDeposit.div(vars.duration);
+        } else {
+            vars.startTime = block.timestamp;
+            vars.duration = project.stopTime.sub(vars.startTime);
+            vars.ratePerSecondOfInvestSell = investSellDeposit.div(vars.duration);
+            vars.ratePerSecondOfInvestFund = investFundDeposit.div(vars.duration);
+
+            vars.time = vars.startTime.sub(project.startTime);
+            vars.calBalance = vars.time.mul(vars.ratePerSecondOfInvestFund);
+            calProjectBalances[projectId].sumOfCalBalance = calProjectBalances[projectId].sumOfCalBalance.add(vars.calBalance);
+        }
+
+        calProjectBalances[projectId].sumOfRatePerSecondOfInvestFund = calProjectBalances[projectId].sumOfRatePerSecondOfInvestFund.add(vars.ratePerSecondOfInvestFund);
+        cancelProjectForInvests[projectId].sumForExistInvest = cancelProjectForInvests[projectId].sumForExistInvest.add(investSellDeposit);
 
         uint256 streamId = nextStreamId;
 
@@ -357,16 +387,14 @@ contract DAISO is IArbitrable, IEvidence, OwnableUpgradeable, ReentrancyGuardUpg
             projectId: projectId,
             investSellDeposit: investSellDeposit,
             investFundDeposit: investFundDeposit,
-            ratePerSecondOfInvestSell: ratePerSecondOfInvestSell,
-            ratePerSecondOfInvestFund: ratePerSecondOfInvestFund,
-            startTime: startTime,
+            ratePerSecondOfInvestSell: vars.ratePerSecondOfInvestSell,
+            ratePerSecondOfInvestFund: vars.ratePerSecondOfInvestFund,
+            startTime: vars.startTime,
             stopTime: project.stopTime,
             sender: msg.sender,
             investWithdrawalAmount:0
         });
 
-        projects[projectId].streamId.push(streamId);
-        cancelProjectForInvests[projectId].sumForExistInvest = cancelProjectForInvests[projectId].sumForExistInvest.add(investSellDeposit);
         nextStreamId = nextStreamId + 1;
 
         require(IERC20Upgradeable(project.projectFundTokenAddress).transferFrom(msg.sender, address(this), investSellDeposit), "TOKEN_TREANSFER_FAILURE");
@@ -511,6 +539,17 @@ contract DAISO is IArbitrable, IEvidence, OwnableUpgradeable, ReentrancyGuardUpg
 
         cancelProjectForInvests[stream.projectId].sumForExistInvest = cancelProjectForInvests[stream.projectId].sumForExistInvest.sub(stream.investSellDeposit);
 
+        calProjectBalances[stream.projectId].sumOfRatePerSecondOfInvestFund = calProjectBalances[stream.projectId].sumOfRatePerSecondOfInvestFund.sub(stream.ratePerSecondOfInvestFund);
+
+        if (stream.startTime > project.startTime) {
+            uint256 time = stream.startTime.sub(project.startTime);
+            uint256 calBalance = time.mul(stream.ratePerSecondOfInvestFund);
+            calProjectBalances[stream.projectId].sumOfCalBalance = calProjectBalances[stream.projectId].sumOfCalBalance.sub(calBalance);
+        }
+
+        uint256 investFund = investFundBalance.add(stream.investWithdrawalAmount);
+        calProjectBalances[stream.projectId].sumOfCancelInvestor = calProjectBalances[stream.projectId].sumOfCancelInvestor.add(investFund);
+
         if (investSellBalance > 0)
             require(IERC20Upgradeable(project.projectFundTokenAddress).transfer(stream.sender, investSellBalance), "TOKEN_TREANSFER_FAILURE");
         if (investFundBalance > 0)
@@ -645,6 +684,21 @@ contract DAISO is IArbitrable, IEvidence, OwnableUpgradeable, ReentrancyGuardUpg
         exitStopTime = cancelProjectForInvests[projectId].exitStopTime;
         sumForExistInvest = cancelProjectForInvests[projectId].sumForExistInvest;
         proposalForCancelStatus = cancelProjectForInvests[projectId].proposalForCancelStatus;
+    }
+    
+    function getCalProjectBalance(uint256 projectId)
+        external
+        view
+        projectExists(projectId)
+        returns (
+            uint256 sumOfRatePerSecondOfInvestFund,
+            uint256 sumOfCalBalance,
+            uint256 sumOfCancelInvestor
+        )
+    {
+        sumOfRatePerSecondOfInvestFund = calProjectBalances[projectId].sumOfRatePerSecondOfInvestFund;
+        sumOfCalBalance = calProjectBalances[projectId].sumOfCalBalance;
+        sumOfCancelInvestor = calProjectBalances[projectId].sumOfCancelInvestor;
     }
 
     function getArbitration(uint256 projectId)

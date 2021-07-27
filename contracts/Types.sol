@@ -56,4 +56,10 @@ library Types{
     }
 
     enum RulingOptions {RefusedToArbitrate, InvestWins, ProjectWins}
+    
+    struct CalProjectBalance {
+        uint256 sumOfRatePerSecondOfInvestFund;
+        uint256 sumOfCalBalance;
+        uint256 sumOfCancelInvestor;
+    }
 }
