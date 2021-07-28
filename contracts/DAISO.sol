@@ -774,15 +774,15 @@ contract DAISO is IArbitrable, IEvidence, OwnableUpgradeable, ReentrancyGuardUpg
 
         require(arbitration.status == Types.Status.Reclaimed,"STATUS_NOT_RECLAIMED");
         require(block.timestamp - arbitration.reclaimedAt > 86400,"NOT_ARRIVAL_RECLAIMEDPERIOD");
+        
+        (uint256 exitProjectSellBalance, uint256 exitProjectFundBalance) = this.projectBalanceOf(projectId);
+        cancelProjectForInvests[projectId].exitProjectSellBalance = exitProjectSellBalance;
+        cancelProjectForInvests[projectId].exitProjectFundBalance = exitProjectFundBalance;
 
         if (block.timestamp <= cancelProjectForInvests[projectId].exitStopTime) {
             cancelProjectForInvests[projectId].exitStopTime = block.timestamp;
         }
         cancelProjectForInvests[projectId].proposalForCancelStatus = 1;
-
-        (uint256 exitProjectSellBalance, uint256 exitProjectFundBalance) = this.projectBalanceOf(projectId);
-        cancelProjectForInvests[projectId].exitProjectSellBalance = exitProjectSellBalance;
-        cancelProjectForInvests[projectId].exitProjectFundBalance = exitProjectFundBalance;
 
         arbitrations[projectId].status = Types.Status.Resolved;
 
@@ -840,15 +840,15 @@ contract DAISO is IArbitrable, IEvidence, OwnableUpgradeable, ReentrancyGuardUpg
 
         bool result;
         if (_ruling == 1) {
+            (uint256 exitProjectSellBalance, uint256 exitProjectFundBalance) = this.projectBalanceOf(projectId);
+            cancelProjectForInvests[projectId].exitProjectSellBalance = exitProjectSellBalance;
+            cancelProjectForInvests[projectId].exitProjectFundBalance = exitProjectFundBalance;
+            
             cancelProjectForInvests[projectId].proposalForCancelStatus = 1;
 
             if (block.timestamp <= cancelProjectForInvest.exitStopTime) {
                 cancelProjectForInvests[projectId].exitStopTime = block.timestamp;
             }
-
-            (uint256 exitProjectSellBalance, uint256 exitProjectFundBalance) = this.projectBalanceOf(projectId);
-            cancelProjectForInvests[projectId].exitProjectSellBalance = exitProjectSellBalance;
-            cancelProjectForInvests[projectId].exitProjectFundBalance = exitProjectFundBalance;
 
             result = arbitration.invest.send(arbitration.feeDeposit);
         } else if (_ruling == 2) {
