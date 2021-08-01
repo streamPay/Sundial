@@ -3,6 +3,10 @@
 ## Introduce
 Sundial combines streaming money with DAICO, and introduces Decentralized Arbitration to supervise the project. It can effectively solve the difficulty of financing and reduce the investment risk.
 
+## Contract Address
+Mainnet:
+Kovan:
+
 ## Contact us
 
 Email: info@sundial.finance
